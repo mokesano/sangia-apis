@@ -1,0 +1,16 @@
+{
+    "name": "sangia/api-engine",
+    "description": "Sangia API Core Processing Engine",
+    "config": {
+        "vendor-dir": "library"
+    },
+    "autoload": {
+        "psr-4": {
+            "Sangia\\Gateway\\": "gateway/",
+            "Sangia\\Core\\": "core/"
+        }
+    },
+    "require": {
+        "php": ">=8.4"
+    }
+}
