@@ -4,113 +4,86 @@ declare(strict_types=1);
 namespace Sangia\Api\Controllers;
 
 use Sangia\Api\Response;
+use Sangia\Core\Modules\SDG\Config\VersionConfig;
+use Sangia\Core\Modules\SDG\Config\SdgDictionary;
+use Sangia\Core\Modules\SDG\Controllers\SdgApi;
+use Sangia\Core\Modules\SDG\Services\SdgAnalyzer;
+use Sangia\Core\Modules\SDG\Services\SdgClassifier;
+use Sangia\Core\Modules\SDG\Services\Evaluator\LevelV4Evaluator;
 
 class SdgController extends BaseController
 {
-    private const SDG_LABELS = [
-        1  => 'Tanpa Kemiskinan',      2  => 'Tanpa Kelaparan',
-        3  => 'Kehidupan Sehat',       4  => 'Pendidikan Berkualitas',
-        5  => 'Kesetaraan Gender',     6  => 'Air Bersih & Sanitasi',
-        7  => 'Energi Bersih',        8  => 'Pekerjaan Layak',
-        9  => 'Industri & Inovasi',   10 => 'Berkurangnya Kesenjangan',
-        11 => 'Kota Berkelanjutan',   12 => 'Konsumsi Bertanggung Jawab',
-        13 => 'Penanganan Iklim',     14 => 'Ekosistem Laut',
-        15 => 'Ekosistem Darat',      16 => 'Perdamaian & Keadilan',
-        17 => 'Kemitraan Global',
-    ];
-
-    public function classify(): void
+    public function classify(string $version): void
     {
-        $body = $this->jsonBody();
+        // SDG analysis on large ORCID profiles can take tens of seconds
+        set_time_limit(120);
+        ignore_user_abort(true);
 
-        $title    = trim($body['title'] ?? '');
+        $body     = $this->jsonBody();
+        $orcid    = trim($body['orcid']    ?? $_GET['orcid']   ?? '');
+        $doi      = trim($body['doi']      ?? $_GET['doi']     ?? '');
+        $title    = trim($body['title']    ?? '');
         $abstract = trim($body['abstract'] ?? '');
+        $refresh  = filter_var($body['refresh'] ?? $_GET['refresh'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
-        if (empty($title) && empty($abstract)) {
-            Response::error('title or abstract is required');
+        $versionCfg = VersionConfig::get($version);
+        $dictionary = new SdgDictionary();
+        $classifier = new SdgClassifier($dictionary);
+        $evaluator  = new LevelV4Evaluator();
+        $analyzer   = new SdgAnalyzer($classifier, $evaluator, $dictionary, $versionCfg);
+        $api        = new SdgApi($analyzer);
+
+        if ($orcid) {
+            Response::json($api->handleOrcidRequest($orcid, $refresh));
+        } elseif ($doi) {
+            Response::json($api->handleDoiRequest($doi, $refresh));
+        } elseif ($title || $abstract) {
+            $result = $analyzer->analyzeWork($title, $abstract);
+            Response::json(['status' => 'success', 'version' => $version, 'sdg_analysis' => $result]);
+        } else {
+            Response::json(['status' => 'error', 'message' => 'Provide orcid, doi, or title+abstract'], 400);
         }
-
-        // Try local Sangia engine first, fall back to built-in classifier
-        $results = $this->classifyViaSangiaEngine($title, $abstract)
-            ?? $this->classifyLocal($title, $abstract);
-
-        Response::success($results);
     }
 
-    private function classifyViaSangiaEngine(string $title, string $abstract): ?array
+    public function versions(): void
     {
-        $url = rtrim(\Sangia\Api\Config\Config::get('SANGIA_AI_ENGINE_URL', ''), '/');
-        if (!$url) return null;
-
-        $ch = curl_init($url . '/api/sdg/classify');
-        curl_setopt_array($ch, [
-            CURLOPT_POST           => true,
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => 10,
-            CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
-            CURLOPT_POSTFIELDS     => json_encode(['title' => $title, 'abstract' => $abstract]),
-        ]);
-
-        $response = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
-
-        if ($httpCode !== 200 || !$response) return null;
-
-        $data = json_decode($response, true);
-        if (!is_array($data)) return null;
-
-        // Normalise to expected shape
-        $items = $data['data'] ?? $data;
-        if (!is_array($items) || empty($items)) return null;
-
-        return array_map(function ($item) {
-            return [
-                'sdg'   => (int) ($item['sdg'] ?? 0),
-                'score' => (float) ($item['score'] ?? 0),
-                'label' => $item['label'] ?? (self::SDG_LABELS[(int)($item['sdg'] ?? 0)] ?? ''),
+        $versions = [];
+        foreach (VersionConfig::versions() as $v) {
+            $cfg          = VersionConfig::get($v);
+            $versions[$v] = [
+                'label'   => $cfg['label'],
+                'weights' => array_diff_key($cfg, ['label' => 1, 'thresholds' => 1]),
             ];
-        }, $items);
+        }
+        Response::json(['status' => 'success', 'data' => $versions]);
     }
 
-    private function classifyLocal(string $title, string $abstract): array
+    public function catalogue(): void
     {
-        // Use the built-in SDG classification engine from core/Modules/SDG
-        $text = strtolower($title . ' ' . $abstract);
-
-        $dictionaryPath = dirname(__DIR__, 2) . '/core/Modules/SDG/Config/Dictionaries/';
-        $results = [];
-
-        for ($sdg = 1; $sdg <= 17; $sdg++) {
-            $dictFile = $dictionaryPath . "Sdg$sdg.php";
-            if (!file_exists($dictFile)) continue;
-
-            $keywords = include $dictFile;
-            if (!is_array($keywords)) continue;
-
-            $matchCount = 0;
-            $totalWords = count($keywords);
-
-            foreach ($keywords as $keyword) {
-                if (str_contains($text, strtolower($keyword))) {
-                    $matchCount++;
-                }
-            }
-
-            if ($totalWords > 0 && $matchCount > 0) {
-                $score = round(min(1.0, $matchCount / max(1, $totalWords * 0.1)), 3);
-                if ($score >= 0.10) {
-                    $results[] = [
-                        'sdg'   => $sdg,
-                        'score' => $score,
-                        'label' => self::SDG_LABELS[$sdg] ?? "SDG $sdg",
-                    ];
-                }
-            }
-        }
-
-        usort($results, fn($a, $b) => $b['score'] <=> $a['score']);
-
-        return array_slice($results, 0, 7);
+        Response::json([
+            'service'   => 'Sangia API Engine',
+            'version'   => 'v1',
+            'endpoints' => [
+                'GET  /health'                  => 'Service health check (no key)',
+                'GET  /api/v1/sdg/versions'     => 'List SDG analysis versions (no key)',
+                'POST /api/v1/sdg/v0/classify'  => 'SDG v0 — keyword-only (v1.1.7)',
+                'POST /api/v1/sdg/v1/classify'  => 'SDG v1 — keyword + similarity',
+                'POST /api/v1/sdg/v2/classify'  => 'SDG v2 — bilingual dict (v2.1.7)',
+                'POST /api/v1/sdg/v3/classify'  => 'SDG v3 — contributor types (v3.1.7)',
+                'POST /api/v1/sdg/v4/classify'  => 'SDG v4 — substantive+causal (v4.1.7)',
+                'POST /api/v1/sdg/v5/classify'  => 'SDG v5 — causal-boosted stable (v5.1.8)',
+                'POST /api/v1/sdg/v5e/classify' => 'SDG v5e — metadata-enhanced (experimental)',
+                'POST /api/v1/sdg/classify'     => 'SDG classify — alias for v5',
+                'GET  /api/v1/scopus/author'    => 'Scopus author profile + publications',
+                'GET  /api/v1/orcid/profile'    => 'ORCID researcher profile + works',
+                'GET  /api/v1/citation/doi'     => 'Multi-source citation data for a DOI',
+                'GET  /api/v1/journal/metrics'  => 'Scopus journal metrics (CiteScore, SJR, SNIP)',
+                'GET  /api/v1/sinta/score'      => 'SINTA journal impact score',
+                'POST /api/v1/impact/calculate' => 'Wizdam Impact Score (composite)',
+                'POST /api/v1/admin/keys/revoke'=> 'Revoke an API key (service calls only)',
+            ],
+            'auth'     => 'X-API-Key: wz_{user_id}_{timestamp}_{hmac16}',
+            'key_info' => 'Dapatkan API key di Wizdam Sikola → Profil → API Keys',
+        ]);
     }
 }
