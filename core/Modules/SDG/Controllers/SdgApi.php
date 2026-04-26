@@ -3,116 +3,248 @@ declare(strict_types=1);
 
 namespace Sangia\Core\Modules\SDG\Controllers;
 
-use Sangia\Core\Shared\Models\TaskModel;
 use Sangia\Core\Shared\ApiClients\OrcidClient;
 use Sangia\Core\Shared\ApiClients\CrossrefClient;
 use Sangia\Core\Shared\Services\CacheService;
 use Sangia\Core\Modules\SDG\Services\SdgAnalyzer;
-// (Pastikan Anda meng-use SdgDictionary, SdgClassifier, LevelV4Evaluator juga jika instansiasi manual)
 
+/**
+ * SDG API Controller — handles DOI and ORCID classification requests.
+ *
+ * ORCID requests use the same anti-timeout batch pattern as WizdamScoreEngine:
+ *   offset=0  → process first BATCH_SIZE works → {status:"processing", next_offset:N}
+ *   offset=N  → continue until {status:"success", data:{...}}
+ */
 class SdgApi
 {
-    private TaskModel $taskModel;
-    private OrcidClient $orcidClient;
+    private const BATCH_SIZE = 20;
+    private const MAX_WORKS  = 50;
+
+    private OrcidClient    $orcidClient;
     private CrossrefClient $crossrefClient;
-    private CacheService $cache;
-    private SdgAnalyzer $analyzer;
+    private CacheService   $cache;
+    private SdgAnalyzer    $analyzer;
 
     public function __construct(SdgAnalyzer $analyzer)
     {
-        $this->taskModel = new TaskModel();
-        $this->orcidClient = new OrcidClient();
+        $this->orcidClient    = new OrcidClient();
         $this->crossrefClient = new CrossrefClient();
-        $this->cache = new CacheService('sdg'); // Set folder cache ke writable/cache/sdg/
-        $this->analyzer = $analyzer;
+        $this->cache          = new CacheService('sdg');
+        $this->analyzer       = $analyzer;
     }
 
+    // ── ORCID — batched, anti-timeout ────────────────────────────────────────
+
     /**
-     * Handler untuk ORCID (Menggunakan Sistem Antrean/Worker)
+     * @param string $orcid         ORCID iD
+     * @param bool   $forceRefresh  Clear cache and start fresh
+     * @param int    $batchSize     Works processed per call
+     * @param int    $offset        Starting index (0 on first call)
      */
-    public function handleOrcidRequest(string $orcid, bool $forceRefresh = false): array
-    {
+    public function handleOrcidRequest(
+        string $orcid,
+        bool   $forceRefresh = false,
+        int    $batchSize    = self::BATCH_SIZE,
+        int    $offset       = 0
+    ): array {
         $orcid = trim($orcid);
-        
-        // 1. Cek Cache (Jika tidak force refresh)
-        if (!$forceRefresh) {
-            $cachedData = $this->cache->get('orcid', $orcid);
-            if ($cachedData !== false) {
+
+        // Return completed cached result on first call (no refresh)
+        if ($offset === 0 && !$forceRefresh) {
+            $cached = $this->cache->get('orcid', $orcid);
+            if ($cached !== false) {
+                $cached['from_cache'] = true;
+                return $cached;
+            }
+        }
+
+        // Fetch ORCID works (OrcidClient caches this)
+        try {
+            $worksRaw = $this->orcidClient->getWorksData($orcid, self::MAX_WORKS);
+        } catch (\Throwable $e) {
+            return $this->error(502, 'ORCID API error: ' . $e->getMessage());
+        }
+
+        $groups = $worksRaw['group'] ?? [];
+        $works  = [];
+        foreach ($groups as $group) {
+            $summary = $group['work-summary'][0] ?? [];
+            $title   = $summary['title']['title']['value'] ?? '';
+            if (empty($title)) continue;
+
+            $extIds = $summary['external-ids']['external-id'] ?? [];
+            $doi    = null;
+            foreach ((array) $extIds as $ext) {
+                if (($ext['external-id-type'] ?? '') === 'doi') {
+                    $doi = $ext['external-id-value'] ?? null;
+                    break;
+                }
+            }
+            $works[] = ['title' => $title, 'doi' => $doi];
+        }
+
+        $works      = array_slice($works, 0, self::MAX_WORKS);
+        $totalWorks = count($works);
+        $accumKey   = 'orcid_accum_' . md5($orcid);
+
+        // Load or initialise accumulator
+        if ($offset === 0) {
+            $accum = [];
+        } else {
+            $stored = $this->cache->get('partial', $accumKey);
+            if ($stored === false) {
                 return [
-                    'status' => 'success',
-                    'message' => 'Data diambil dari cache.',
-                    'from_cache' => true,
-                    'data' => $cachedData
+                    'status'  => 'error',
+                    'code'    => 410,
+                    'message' => 'Batch session expired. Restart with offset=0.',
+                ];
+            }
+            $accum = $stored;
+        }
+
+        // ── Process batch ─────────────────────────────────────────────────────
+        $batch = array_slice($works, $offset, $batchSize);
+
+        foreach ($batch as $work) {
+            $abstract = '';
+
+            // Try to enrich with abstract from Crossref if DOI is available
+            if (!empty($work['doi'])) {
+                try {
+                    $crData   = $this->crossrefClient->getWorkData($work['doi']);
+                    $abstract = strip_tags($crData['message']['abstract'] ?? '');
+                } catch (\Throwable) {
+                    // abstract stays empty — title-only analysis
+                }
+            }
+
+            try {
+                $analysis = $this->analyzer->analyzeWork($work['title'], $abstract);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            $accum[] = [
+                'title'      => substr($work['title'], 0, 100),
+                'doi'        => $work['doi'],
+                'sdgs'       => array_keys($analysis['sdg_confidence'] ?? []),
+                'confidence' => $analysis['sdg_confidence'] ?? [],
+                'analysis'   => $analysis,
+            ];
+        }
+
+        $this->cache->set('partial', $accumKey, $accum);
+
+        $processed = min($offset + $batchSize, $totalWorks);
+        $isDone    = ($processed >= $totalWorks) || empty($batch);
+
+        // ── More batches remain ───────────────────────────────────────────────
+        if (!$isDone) {
+            return [
+                'status'      => 'processing',
+                'orcid'       => $orcid,
+                'progress'    => [
+                    'processed'   => $processed,
+                    'total_works' => $totalWorks,
+                    'percent'     => (int) round($processed / max(1, $totalWorks) * 100),
+                ],
+                'next_offset' => $processed,
+            ];
+        }
+
+        // ── All works done — aggregate and return ─────────────────────────────
+        $allSdgs    = [];
+        $worksSummary = [];
+
+        foreach ($accum as $item) {
+            foreach ($item['confidence'] ?? [] as $sdgCode => $score) {
+                $allSdgs[$sdgCode][] = (float) $score;
+            }
+            if (!empty($item['sdgs'])) {
+                $worksSummary[] = [
+                    'title' => $item['title'],
+                    'doi'   => $item['doi'],
+                    'sdgs'  => $item['sdgs'],
                 ];
             }
         }
 
-        // 2. Jika tidak ada di cache, masukkan ke antrean (Logika sama seperti sebelumnya)
-        // ... (Ambil Profil dari OrcidClient) ...
-        // ... (Buat $taskId via TaskModel) ...
-        
-        // Contoh return jika masuk antrean (dipersingkat untuk fokus)
-        return [
-            'status' => 'queued',
-            'task_id' => 'WD-XYZ123', // Hasil dari $this->taskModel->createTask(...)
-            'message' => 'Masuk antrean. Lakukan polling ke worker.'
+        $sdgSummary = [];
+        foreach ($allSdgs as $sdgCode => $scores) {
+            $sdgSummary[$sdgCode] = [
+                'average_confidence' => round(array_sum($scores) / count($scores), 3),
+                'work_count'         => count($scores),
+            ];
+        }
+        arsort($sdgSummary);
+
+        $result = [
+            'status'       => 'success',
+            'orcid'        => $orcid,
+            'total_works'  => $totalWorks,
+            'data'         => [
+                'sdg_summary' => $sdgSummary,
+                'works'       => $worksSummary,
+            ],
+            'from_cache'   => false,
+            'api_version'  => 'v5.1.8-batch',
         ];
+
+        $this->cache->set('orcid', $orcid, $result);
+        return $result;
     }
 
-    /**
-     * Handler untuk DOI Tunggal (Diproses Langsung, Bebas Timeout karena cuma 1)
-     */
+    // ── DOI — single work, synchronous ───────────────────────────────────────
+
     public function handleDoiRequest(string $doi, bool $forceRefresh = false): array
     {
         $doi = trim($doi);
         if (empty($doi)) {
-            return $this->errorResponse(400, 'DOI tidak boleh kosong');
+            return $this->error(400, 'DOI tidak boleh kosong');
         }
 
-        // 1. Cek Cache
         if (!$forceRefresh) {
-            $cachedData = $this->cache->get('article', $doi);
-            if ($cachedData !== false) {
-                $cachedData['cache_info'] = ['from_cache' => true];
-                return $cachedData;
+            $cached = $this->cache->get('article', $doi);
+            if ($cached !== false) {
+                $cached['cache_info'] = ['from_cache' => true];
+                return $cached;
             }
         }
 
         try {
-            // 2. Ambil Metadata dari Crossref
             $crossrefData = $this->crossrefClient->getWorkData($doi);
             if (empty($crossrefData)) {
-                return $this->errorResponse(404, 'Data DOI tidak ditemukan di Crossref.');
+                return $this->error(404, 'Data DOI tidak ditemukan di Crossref.');
             }
 
-            $title = $crossrefData['message']['title'][0] ?? '';
-            $abstract = $crossrefData['message']['abstract'] ?? $this->crossrefClient->getAlternativeAbstract($doi);
+            $title    = $crossrefData['message']['title'][0] ?? '';
+            $abstract = strip_tags($crossrefData['message']['abstract'] ?? '');
 
-            // 3. Analisis menggunakan SdgAnalyzer
-            $analysisResult = $this->analyzer->analyzeWork($title, $abstract);
+            if (empty($abstract)) {
+                $abstract = $this->crossrefClient->getAlternativeAbstract($doi);
+            }
 
-            // 4. Susun Hasil Akhir
-            $finalResult = [
-                'doi' => $doi,
-                'title' => $title,
-                'abstract' => strip_tags($abstract),
-                'sdg_analysis' => $analysisResult,
-                'api_version' => 'v5.1.8-Modular',
-                'status' => 'success'
+            $analysis = $this->analyzer->analyzeWork($title, $abstract);
+
+            $result = [
+                'status'      => 'success',
+                'doi'         => $doi,
+                'title'       => $title,
+                'abstract'    => $abstract,
+                'sdg_analysis'=> $analysis,
+                'api_version' => 'v5.1.8-batch',
+                'cache_info'  => ['from_cache' => false],
             ];
 
-            // 5. Simpan ke Cache (.json.gz)
-            $this->cache->set('article', $doi, $finalResult);
+            $this->cache->set('article', $doi, $result);
+            return $result;
 
-            $finalResult['cache_info'] = ['from_cache' => false];
-            return $finalResult;
-
-        } catch (\Exception $e) {
-            return $this->errorResponse(500, 'Kesalahan internal: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            return $this->error(500, 'Kesalahan internal: ' . $e->getMessage());
         }
     }
 
-    private function errorResponse(int $code, string $message): array
+    private function error(int $code, string $message): array
     {
         http_response_code($code);
         return ['status' => 'error', 'code' => $code, 'message' => $message];
