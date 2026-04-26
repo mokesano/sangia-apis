@@ -3,42 +3,116 @@ declare(strict_types=1);
 
 namespace Sangia\Api;
 
+use Sangia\Api\Controllers\AdminController;
+use Sangia\Api\Controllers\CitationController;
+use Sangia\Api\Controllers\ImpactController;
+use Sangia\Api\Controllers\JournalController;
+use Sangia\Api\Controllers\OrcidController;
+use Sangia\Api\Controllers\ScopusController;
+use Sangia\Api\Controllers\SdgController;
+use Sangia\Api\Controllers\SintaController;
+use Sangia\Gateway\ApiKeyMiddleware;
+use Sangia\Api\Middleware\RateLimitMiddleware;
+
 class Router
 {
-    private array $routes = [];
-
-    public function get(string $pattern, array $handler): void
+    public function dispatch(): void
     {
-        $this->add('GET', $pattern, $handler);
+        $method = $_SERVER['REQUEST_METHOD'];
+        $uri    = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/', '/') ?: '/';
+
+        // Public routes — no API key required
+        if ($this->routePublic($uri, $method)) return;
+
+        // Authentication + rate limiting gate
+        ApiKeyMiddleware::validate();
+        RateLimitMiddleware::check();
+
+        // Protected routes — API key required
+        if ($this->routeProtected($uri, $method)) return;
+
+        Response::json(['status' => 'error', 'message' => "$method $uri not found"], 404);
     }
 
-    public function post(string $pattern, array $handler): void
+    // ── Public routes ─────────────────────────────────────────────────────────
+
+    private function routePublic(string $uri, string $method): bool
     {
-        $this->add('POST', $pattern, $handler);
-    }
-
-    private function add(string $method, string $pattern, array $handler): void
-    {
-        $this->routes[] = compact('method', 'pattern', 'handler');
-    }
-
-    public function dispatch(string $method, string $uri): void
-    {
-        $uri = rtrim(parse_url($uri, PHP_URL_PATH) ?? '/', '/') ?: '/';
-
-        foreach ($this->routes as $route) {
-            if ($route['method'] !== $method) continue;
-
-            $regex = '#^' . preg_replace('/\{([a-z_]+)\}/', '([^/]+)', $route['pattern']) . '$#';
-
-            if (preg_match($regex, $uri, $matches)) {
-                array_shift($matches);
-                [$class, $action] = $route['handler'];
-                (new $class())->$action(...$matches);
-                return;
-            }
+        if ($method === 'GET' && ($uri === '/health' || $uri === '/api/v1/health')) {
+            Response::json(['status' => 'up', 'service' => 'Sangia API Engine', 'time' => date('c')]);
         }
 
-        Response::notFound("Endpoint $method $uri not found");
+        if ($method === 'GET' && $uri === '/api/v1/sdg/versions') {
+            (new SdgController())->versions();
+            return true;
+        }
+
+        if ($method === 'GET' && ($uri === '/api/v1' || $uri === '/api')) {
+            (new SdgController())->catalogue();
+            return true;
+        }
+
+        return false;
+    }
+
+    // ── Protected routes ──────────────────────────────────────────────────────
+
+    private function routeProtected(string $uri, string $method): bool
+    {
+        // SDG — 7 versioned endpoints
+        if ($method === 'POST' && preg_match('#^/api/v1/sdg/(v0|v1|v2|v3|v4|v5|v5e)/classify$#', $uri, $m)) {
+            (new SdgController())->classify($m[1]);
+            return true;
+        }
+
+        // SDG — alias /api/v1/sdg/classify → v5
+        if ($method === 'POST' && $uri === '/api/v1/sdg/classify') {
+            header('Location: /api/v1/sdg/v5/classify', true, 307);
+            exit;
+        }
+
+        // Scopus author
+        if ($method === 'GET' && $uri === '/api/v1/scopus/author') {
+            (new ScopusController())->author();
+            return true;
+        }
+
+        // ORCID profile
+        if ($method === 'GET' && $uri === '/api/v1/orcid/profile') {
+            (new OrcidController())->profile();
+            return true;
+        }
+
+        // Citation by DOI
+        if ($method === 'GET' && $uri === '/api/v1/citation/doi') {
+            (new CitationController())->doi();
+            return true;
+        }
+
+        // Journal metrics
+        if ($method === 'GET' && $uri === '/api/v1/journal/metrics') {
+            (new JournalController())->metrics();
+            return true;
+        }
+
+        // SINTA journal score
+        if ($method === 'GET' && $uri === '/api/v1/sinta/score') {
+            (new SintaController())->score();
+            return true;
+        }
+
+        // Wizdam Impact Score
+        if ($method === 'POST' && $uri === '/api/v1/impact/calculate') {
+            (new ImpactController())->calculate();
+            return true;
+        }
+
+        // Admin — revoke API key
+        if ($method === 'POST' && $uri === '/api/v1/admin/keys/revoke') {
+            (new AdminController())->revokeKey();
+            return true;
+        }
+
+        return false;
     }
 }
