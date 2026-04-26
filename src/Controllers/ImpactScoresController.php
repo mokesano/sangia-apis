@@ -80,7 +80,7 @@ class ImpactScoresController extends BaseController
     private function derivePillars(string $type, int $id): array
     {
         if ($type === 'researcher') {
-            $row = (new \Sangia\Api\Config\Database())::connection()->prepare(
+            $row = \Sangia\Api\Config\Database::connection()->prepare(
                 "SELECT h_index, total_citations, total_publications FROM researchers WHERE id = :id"
             );
             $row->execute([':id' => $id]);

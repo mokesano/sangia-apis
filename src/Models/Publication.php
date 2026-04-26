@@ -48,8 +48,8 @@ class Publication extends BaseModel
              FROM publications p
              WHERE $whereClause
              ORDER BY p.wizdam_score DESC, p.cited_by_count DESC
-             LIMIT :limit OFFSET :offset",
-            array_merge($params, [':limit' => $perPage, ':offset' => $offset])
+             LIMIT $perPage OFFSET $offset",
+            $params
         );
 
         return [
@@ -65,8 +65,8 @@ class Publication extends BaseModel
                     cited_by_count, wizdam_score, sdgs_goals, document_type, access_type
              FROM publications
              ORDER BY wizdam_score DESC, cited_by_count DESC
-             LIMIT :limit",
-            [':limit' => $limit]
+             LIMIT $limit",
+            []
         );
 
         return array_map([$this, 'normalize'], $rows);

@@ -45,8 +45,8 @@ class Institution extends BaseModel
              FROM institutions
              WHERE $whereClause
              ORDER BY wizdam_score DESC
-             LIMIT :limit OFFSET :offset",
-            array_merge($params, [':limit' => $perPage, ':offset' => $offset])
+             LIMIT $perPage OFFSET $offset",
+            $params
         );
 
         return [

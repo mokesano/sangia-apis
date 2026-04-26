@@ -56,8 +56,8 @@ class Researcher extends BaseModel
              LEFT JOIN institutions i ON i.id = r.institution_id
              WHERE $whereClause
              ORDER BY r.wizdam_score DESC
-             LIMIT :limit OFFSET :offset",
-            array_merge($params, [':limit' => $perPage, ':offset' => $offset])
+             LIMIT $perPage OFFSET $offset",
+            $params
         );
 
         return [
@@ -77,8 +77,8 @@ class Researcher extends BaseModel
              FROM researchers r
              LEFT JOIN institutions i ON i.id = r.institution_id
              ORDER BY r.wizdam_score DESC
-             LIMIT :limit",
-            [':limit' => $limit]
+             LIMIT $limit",
+            []
         );
 
         return array_map([$this, 'normalize'], $rows);
