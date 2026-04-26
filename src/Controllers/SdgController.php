@@ -15,8 +15,8 @@ class SdgController extends BaseController
 {
     public function classify(string $version): void
     {
-        // SDG analysis on large ORCID profiles can take tens of seconds
-        set_time_limit(120);
+        // ORCID path uses batch processing; direct text analysis is fast
+        set_time_limit(60);
         ignore_user_abort(true);
 
         $body     = $this->jsonBody();
@@ -25,6 +25,8 @@ class SdgController extends BaseController
         $title    = trim($body['title']    ?? '');
         $abstract = trim($body['abstract'] ?? '');
         $refresh  = filter_var($body['refresh'] ?? $_GET['refresh'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $offset   = max(0, (int) ($body['offset']     ?? $_GET['offset']     ?? 0));
+        $batch    = max(1, min(50, (int) ($body['batch_size'] ?? $_GET['batch_size'] ?? 20)));
 
         $versionCfg = VersionConfig::get($version);
         $dictionary = new SdgDictionary();
@@ -34,7 +36,7 @@ class SdgController extends BaseController
         $api        = new SdgApi($analyzer);
 
         if ($orcid) {
-            Response::json($api->handleOrcidRequest($orcid, $refresh));
+            Response::json($api->handleOrcidRequest($orcid, $refresh, $batch, $offset));
         } elseif ($doi) {
             Response::json($api->handleDoiRequest($doi, $refresh));
         } elseif ($title || $abstract) {
@@ -79,8 +81,13 @@ class SdgController extends BaseController
                 'GET  /api/v1/citation/doi'     => 'Multi-source citation data for a DOI',
                 'GET  /api/v1/journal/metrics'  => 'Scopus journal metrics (CiteScore, SJR, SNIP)',
                 'GET  /api/v1/sinta/score'      => 'SINTA journal impact score',
-                'POST /api/v1/impact/calculate' => 'Wizdam Impact Score (composite)',
+                'POST /api/v1/impact/calculate' => 'Wizdam Impact Score — batched (offset, batch_size)',
                 'POST /api/v1/admin/keys/revoke'=> 'Revoke an API key (service calls only)',
+            ],
+            'batch_info' => [
+                'description' => 'Endpoints with ORCID input support batched processing to avoid timeout.',
+                'usage'       => 'Loop: call with offset=0, then next_offset until status="success".',
+                'fields'      => ['offset' => 'int (default 0)', 'batch_size' => 'int 1-50 (default 20)'],
             ],
             'auth'     => 'X-API-Key: wz_{user_id}_{timestamp}_{hmac16}',
             'key_info' => 'Dapatkan API key di Wizdam Sikola → Profil → API Keys',
