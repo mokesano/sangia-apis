@@ -24,6 +24,8 @@
 | GET | `/api/v1/journal/metrics` | API Key | Metrik jurnal Scopus |
 | GET | `/api/v1/sinta/score` | API Key | Skor jurnal SINTA |
 | POST | `/api/v1/impact/calculate` | API Key | Wizdam Impact Score |
+| POST | `/api/v1/trend/analyze` | API Key | Trend Analysis |
+| POST | `/api/v1/recommendation/policy` | API Key | Policy Recommendations |
 | POST | `/api/v1/admin/keys/revoke` | API Key | Cabut API key |
 
 ---
@@ -48,6 +50,64 @@ Authorization: Bearer wz_42_1719000000_a3f8e2c1d5b7
 
 **Rate Limit:** 60 request/60 detik per API key (default). Dapat dikonfigurasi via env.  
 Header response: `X-RateLimit-Limit`, `X-RateLimit-Remaining`
+
+---
+
+## Arsitektur Data
+
+wizdam-apis adalah **pure analysis engine** — tidak menyimpan hasil apapun secara permanen.  
+Semua persistensi data adalah tanggung jawab **Wizdam Sikola**.
+
+### Pola `supplied_data` — Kirim data dari DB Wizdam Sikola
+
+Jika Wizdam Sikola sudah memiliki data di DB, kirimkan dalam request body.  
+wizdam-apis akan menggunakan data tersebut **tanpa melakukan cURL ke API eksternal**.
+
+```json
+{
+  "orcid": "0000-0002-1234-5678",
+  "supplied_works": [
+    {
+      "title": "Solar Panel Adoption in Rural Java",
+      "doi": "10.1234/example",
+      "publication_year": 2023,
+      "type": "journal-article",
+      "journal_title": "Renewable Energy"
+    }
+  ],
+  "supplied_person": {
+    "name": "Budi Santoso",
+    "given_names": "Budi",
+    "family_name": "Santoso"
+  },
+  "supplied_scopus": {
+    "h_index": 18,
+    "document_count": 145,
+    "citation_count": 3200
+  }
+}
+```
+
+Response saat data disupply: `"data_source": "wizdam_sikola_db"`
+
+### Pola `raw_data` — Simpan hasil ke DB Wizdam Sikola
+
+Ketika wizdam-apis mengambil data dari API eksternal (ORCID/Scopus/dll), response menyertakan field `raw_data` berisi data mentah beserta `fetched_at`.  
+Wizdam Sikola harus menyimpan ini ke tabelnya (citations_cache, author_profiles_cache, dll).
+
+```json
+{
+  "status": "success",
+  "...",
+  "raw_data": {
+    "doi": "10.1234/example",
+    "metadata": { "..." : "..." },
+    "fetched_at": "2025-01-01T00:00:00+00:00"
+  }
+}
+```
+
+Response saat data diambil dari API eksternal: `"data_source": "orcid_api"` / `"external_apis"` / dll.
 
 ---
 
@@ -178,34 +238,28 @@ Klasifikasi SDG dari teks, DOI, atau ORCID.
   "refresh": false,
   "offset": 0,
   "batch_size": 20,
-  "weights": { "keyword": 0.30, "similarity": 0.30, "substantive": 0.20, "causal": 0.20 }
+  "weights": { "keyword": 0.30, "similarity": 0.30, "substantive": 0.20, "causal": 0.20 },
+  "supplied_works": []
 }
 ```
-Gunakan **salah satu**: `title+abstract`, `doi`, atau `orcid`. Jika `orcid`, gunakan pola batch.
+Gunakan **salah satu**: `title+abstract`, `doi`, atau `orcid`. Jika `orcid`, gunakan pola batch.  
+`supplied_works` — opsional, kirim data karya dari DB Wizdam Sikola untuk skip fetch ORCID.
 
 **Response (title+abstract):**
 ```json
 {
   "status": "success",
   "version": "v5",
-  "weights_applied": { "keyword": 0.30, ... },
+  "weights_applied": { "keyword": 0.30, "...": "..." },
   "sdg_analysis": {
     "sdgs": ["SDG7", "SDG13"],
     "sdg_confidence": { "SDG7": 0.724, "SDG13": 0.611 },
     "contributor_types": { "SDG7": "Active Contributor" },
-    "contribution_pathways": { "SDG7": "clean_energy_access" },
     "detailed_analysis": {
       "SDG7": {
         "score": 0.724,
         "confidence_level": "High",
-        "contributor_type": { "type": "Active Contributor", "level": "High" },
-        "components": {
-          "keyword_score": 0.65,
-          "similarity_score": 0.71,
-          "substantive_score": 0.80,
-          "causal_score": 0.75
-        },
-        "evidence": { "causal_relationship": ["contributes to clean energy"] }
+        "components": { "keyword_score": 0.65, "similarity_score": 0.71, "substantive_score": 0.80, "causal_score": 0.75 }
       }
     }
   }
@@ -215,9 +269,19 @@ Gunakan **salah satu**: `title+abstract`, `doi`, atau `orcid`. Jika `orcid`, gun
 ---
 
 ### GET `/api/v1/scopus/author`
-Profil author dan daftar publikasi dari Scopus API. Fallback ke OpenAlex.
+Profil author dan daftar publikasi dari Scopus API.
 
 **Query params:** `authorid` (required), `count` (1–25, default 10), `refresh` (bool)
+
+**Request body (opsional — supplied data):**
+```json
+{
+  "supplied_scopus": {
+    "author": { "full_name": "Budi Santoso", "h_index": 18, "citation_count": 3200 },
+    "publications": []
+  }
+}
+```
 
 **Response:**
 ```json
@@ -230,21 +294,11 @@ Profil author dan daftar publikasi dari Scopus API. Fallback ke OpenAlex.
     "h_index": 18,
     "document_count": 145,
     "citation_count": 3200,
-    "cited_by_count": 2980,
-    "orcid": "0000-0002-1234-5678",
     "data_source": "scopus"
   },
-  "publications": [
-    {
-      "eid": "2-s2.0-85000000000",
-      "doi": "10.1234/example",
-      "title": "...",
-      "journal": "Renewable Energy",
-      "year": 2023,
-      "cited_by_count": 42,
-      "open_access": true
-    }
-  ],
+  "publications": [ { "doi": "10.1234/example", "title": "...", "year": 2023, "cited_by_count": 42 } ],
+  "data_source": "scopus_api",
+  "raw_data": { "author": {}, "publications": [], "fetched_at": "2025-01-01T00:00:00+00:00" },
   "cache_info": { "from_cache": false }
 }
 ```
@@ -254,7 +308,15 @@ Profil author dan daftar publikasi dari Scopus API. Fallback ke OpenAlex.
 ### GET `/api/v1/orcid/profile`
 Profil peneliti lengkap dari ORCID public API.
 
-**Query params:** `orcid` (required, format `0000-0000-0000-0000`), `refresh` (bool), `limit` (default 50, max 200)
+**Query params:** `orcid` (required, format `0000-0000-0000-0000`), `refresh` (bool), `limit` (default 50)
+
+**Request body (opsional — supplied data):**
+```json
+{
+  "supplied_works": [ { "title": "...", "doi": "...", "publication_year": 2023 } ],
+  "supplied_person": { "name": "Budi Santoso", "given_names": "Budi", "family_name": "Santoso" }
+}
+```
 
 **Response:**
 ```json
@@ -263,23 +325,14 @@ Profil peneliti lengkap dari ORCID public API.
   "orcid": "0000-0002-1234-5678",
   "person_summary": {
     "name": "Budi Santoso",
-    "given_names": "Budi",
-    "family_name": "Santoso",
-    "bio": "Researcher in renewable energy...",
     "emails": ["budi@ui.ac.id"],
     "keywords": ["renewable energy", "SDG"],
     "country": "ID"
   },
-  "works": [
-    {
-      "title": "Solar Panel Adoption in Rural Java",
-      "doi": "10.1234/example",
-      "publication_year": 2023,
-      "type": "journal-article",
-      "journal_title": "Renewable Energy"
-    }
-  ],
+  "works": [ { "title": "Solar Panel Adoption in Rural Java", "doi": "10.1234/example", "publication_year": 2023 } ],
   "works_count": 87,
+  "data_source": "orcid_api",
+  "raw_data": { "person": {}, "works": [], "fetched_at": "2025-01-01T00:00:00+00:00" },
   "cache_info": { "from_cache": false }
 }
 ```
@@ -298,13 +351,7 @@ Data sitasi multi-sumber untuk sebuah DOI.
 {
   "status": "success",
   "doi": "10.1234/example",
-  "article_metadata": {
-    "title": "Solar Panel Adoption in Rural Java",
-    "authors": ["Budi Santoso", "Ani Wijaya"],
-    "publication_year": 2023,
-    "journal": "Renewable Energy",
-    "is_referenced_by": 42
-  },
+  "article_metadata": { "title": "...", "authors": ["Budi Santoso"], "publication_year": 2023, "is_referenced_by": 42 },
   "citations": {
     "opencitations": [ { "citing_doi": "10.5678/...", "source": "opencitations" } ],
     "crossref": [],
@@ -313,6 +360,8 @@ Data sitasi multi-sumber untuk sebuah DOI.
   },
   "citation_count": { "opencitations": 12, "crossref": 0, "openalex": 8, "semantic_scholar": 6 },
   "total_unique": 18,
+  "data_source": "external_apis",
+  "raw_data": { "doi": "10.1234/example", "metadata": {}, "counts": {}, "fetched_at": "2025-01-01T00:00:00+00:00" },
   "cache_info": { "from_cache": false }
 }
 ```
@@ -331,7 +380,6 @@ Metrik jurnal dari Scopus Serial Title API.
   "journal": {
     "title": "Renewable Energy",
     "issn_print": "0960-1481",
-    "issn_electronic": "1879-0682",
     "publisher": "Elsevier",
     "open_access": false,
     "active": true
@@ -339,14 +387,11 @@ Metrik jurnal dari Scopus Serial Title API.
   "metrics": {
     "citescore": 13.2,
     "sjr": 1.845,
-    "sjr_year": "2023",
     "snip": 2.11,
-    "snip_year": "2023",
     "quartile": "Q1",
-    "subject_areas": [
-      { "name": "Renewable Energy, Sustainability and the Environment", "code": "2105", "quartile": "Q1" }
-    ]
+    "subject_areas": [ { "name": "Renewable Energy", "code": "2105", "quartile": "Q1" } ]
   },
+  "raw_data": { "issn": "0960-1481", "metrics": {}, "fetched_at": "2025-01-01T00:00:00+00:00" },
   "cache_info": { "from_cache": false }
 }
 ```
@@ -368,6 +413,7 @@ Skor dan grade jurnal dari SINTA (Kemenristekdikti).
   "grade": "S2",
   "sinta_id": "123456",
   "sinta_url": "https://sinta.kemdiktisaintek.go.id/journals/profile/123456",
+  "raw_data": { "issn": "2549-1385", "sinta": {}, "fetched_at": "2025-01-01T00:00:00+00:00" },
   "cache_info": { "from_cache": false }
 }
 ```
@@ -375,7 +421,7 @@ Skor dan grade jurnal dari SINTA (Kemenristekdikti).
 ---
 
 ### POST `/api/v1/impact/calculate`
-Hitung Wizdam Impact Score (komposit 4 pilar). Mendukung pola batch.
+Hitung Wizdam Impact Score (komposit 4 pilar). Mendukung pola batch dan supplied data.
 
 **Request body:**
 ```json
@@ -394,15 +440,13 @@ Hitung Wizdam Impact Score (komposit 4 pilar). Mendukung pola batch.
     "tech_transfer": 35,
     "startup_spinoffs": 10
   },
-  "weights": {
-    "academic": 0.40,
-    "social": 0.25,
-    "economic": 0.20,
-    "sdg": 0.15
-  },
+  "weights": { "academic": 0.40, "social": 0.25, "economic": 0.20, "sdg": 0.15 },
   "refresh": false,
   "offset": 0,
-  "batch_size": 20
+  "batch_size": 20,
+  "supplied_works": [],
+  "supplied_person": null,
+  "supplied_scopus": null
 }
 ```
 
@@ -413,27 +457,12 @@ Hitung Wizdam Impact Score (komposit 4 pilar). Mendukung pola batch.
   "orcid": "0000-0002-1234-5678",
   "name": "Budi Santoso",
   "composite": 68.45,
-  "pillars": {
-    "academic": 82.10,
-    "social": 66.25,
-    "economic": 26.25,
-    "sdg": 54.80
-  },
+  "pillars": { "academic": 82.10, "social": 66.25, "economic": 26.25, "sdg": 54.80 },
   "weights": { "academic": 0.40, "social": 0.25, "economic": 0.20, "sdg": 0.15 },
-  "sdg_tags": [
-    { "sdg": 7, "code": "SDG7", "score": 0.724, "count": 12, "label": "Energi Bersih" }
-  ],
-  "sdg_by_work": [
-    { "title": "Solar Panel Adoption...", "sdgs": [ { "sdg": "SDG7", "score": 0.724 } ] }
-  ],
-  "academic_metrics": {
-    "publication_count": 87,
-    "h_index": 18,
-    "citation_count": 3200,
-    "data_sources": ["orcid", "scopus"]
-  },
-  "social_inputs": { "media_mentions": 75, "..." : "..." },
-  "economic_inputs": { "industry_adoption": 40, "...": "..." },
+  "sdg_tags": [ { "sdg": 7, "code": "SDG7", "score": 0.724, "count": 12 } ],
+  "academic_metrics": { "publication_count": 87, "h_index": 18, "citation_count": 3200 },
+  "data_sources": { "orcid": "orcid_api", "scopus": "scopus_api" },
+  "raw_data": { "orcid_person": {}, "orcid_works": [], "scopus": {}, "fetched_at": "2025-01-01T00:00:00+00:00" },
   "api_version": "v1.1-batch",
   "calculated_at": "2025-01-01T00:00:00+00:00",
   "cache_info": { "from_cache": false }
@@ -449,6 +478,157 @@ Social    = avg(media_mentions, policy_citations, social_shares, news_coverage) 
 Economic  = avg(industry_adoption, patents, tech_transfer, startup_spinoffs)     [0–100 each]
 SDG       = (coverage_ratio×0.4 + avg_confidence×0.6) × 100
             coverage_ratio = min(1.0, distinct_sdg_count / 5)
+```
+
+---
+
+### POST `/api/v1/trend/analyze`
+Analisis tren berdasarkan data karya peneliti.
+
+**Request body:**
+```json
+{
+  "orcid": "0000-0002-1234-5678",
+  "analysis_type": "impact_trajectory",
+  "time_range": "5y",
+  "scopus_id": "57200000000",
+  "refresh": false,
+  "supplied_works": [
+    {
+      "title": "Solar Panel Adoption in Rural Java",
+      "doi": "10.1234/example",
+      "publication_year": 2023,
+      "authors_string": "Budi Santoso, Ani Wijaya"
+    }
+  ],
+  "supplied_scopus": null
+}
+```
+
+**Tipe analisis (`analysis_type`):**
+
+| Nilai | Keterangan | Data yang Dibutuhkan |
+|-------|-----------|---------------------|
+| `impact_trajectory` | Tren jumlah publikasi & sitasi per tahun | `supplied_works` dengan `publication_year` |
+| `sdg_evolution` | Evolusi distribusi SDG per tahun | `supplied_works` dengan `title` + `publication_year` |
+| `collaboration_network` | Jaringan co-author | `supplied_works` dengan `authors_string` atau `contributors` |
+| `citation_growth` | Tren pertumbuhan sitasi dari Scopus | `scopus_id` wajib + `supplied_scopus` opsional |
+
+**Parameter `time_range`:** `1y` | `3y` | `5y` | `10y` | `all`
+
+**Response (`impact_trajectory`):**
+```json
+{
+  "status": "success",
+  "orcid": "0000-0002-1234-5678",
+  "analysis_type": "impact_trajectory",
+  "time_range": "5y",
+  "data": {
+    "yearly_publications": { "2019": 8, "2020": 12, "2021": 15, "2022": 18, "2023": 22 },
+    "growth_trend": "increasing",
+    "growth_rate_percent": 175.0,
+    "peak_year": 2023,
+    "total_works_analyzed": 75
+  },
+  "data_source": "wizdam_sikola_db",
+  "api_version": "v1.0-trend"
+}
+```
+
+**Response (`sdg_evolution`):**
+```json
+{
+  "status": "success",
+  "analysis_type": "sdg_evolution",
+  "data": {
+    "sdg_by_year": {
+      "2021": { "SDG7": 5, "SDG13": 3 },
+      "2022": { "SDG7": 8, "SDG9": 2 },
+      "2023": { "SDG7": 10, "SDG13": 6, "SDG9": 4 }
+    },
+    "dominant_sdg": "SDG7",
+    "emerging_sdgs": ["SDG9"],
+    "total_works_analyzed": 75
+  }
+}
+```
+
+---
+
+### POST `/api/v1/recommendation/policy`
+Rekomendasi kebijakan berbasis data riset.
+
+**Request body:**
+```json
+{
+  "stakeholder_type": "government",
+  "domain": "sdg_achievement",
+  "time_horizon": "medium_term",
+  "region": "Indonesia",
+  "research_landscape": {
+    "total_researchers": 1250,
+    "total_publications": 8900,
+    "dominant_sdgs": ["SDG4", "SDG7", "SDG13"],
+    "weak_sdgs": ["SDG14", "SDG15"],
+    "strong_sdgs": ["SDG4", "SDG7"],
+    "avg_impact_score": 62.5,
+    "collaboration_rate": 0.68,
+    "international_collab_rate": 0.23,
+    "top_institutions": ["Universitas Indonesia", "ITB"]
+  }
+}
+```
+
+**Tipe stakeholder (`stakeholder_type`):** `government` | `institution` | `industry` | `researcher` | `community`
+
+**Response:**
+```json
+{
+  "status": "success",
+  "stakeholder_type": "government",
+  "domain": "sdg_achievement",
+  "region": "Indonesia",
+  "time_horizon_key": "medium_term",
+  "context_summary": {
+    "data_driven": true,
+    "researchers": 1250,
+    "strong_sdgs": ["SDG4", "SDG7"],
+    "weak_sdgs": ["SDG14", "SDG15"],
+    "region": "Indonesia"
+  },
+  "recommendations": [
+    {
+      "id": "GOV-01",
+      "priority": "high",
+      "category": "infrastructure",
+      "target_sdgs": ["SDG4", "SDG9", "SDG17"],
+      "activity_keys": ["modernize_research_labs", "expand_digital_library", "build_hpc_center"],
+      "expected_impact": { "research_capacity_increase": "40%", "international_collaboration_growth": "60%" },
+      "time_horizon_key": "medium_term",
+      "implementation": {
+        "horizon_key": "medium_term",
+        "steps": [
+          { "phase": "phase_1", "activity_key": "modernize_research_labs" },
+          { "phase": "phase_2", "activity_key": "expand_digital_library" },
+          { "phase": "phase_3", "activity_key": "build_hpc_center" }
+        ]
+      },
+      "success_metrics": {
+        "tracking_period": "annual",
+        "review_mechanism": "periodic_committee_review",
+        "targets": { "research_capacity_increase": "40%" }
+      }
+    }
+  ],
+  "priority_matrix": {
+    "high_priority": ["GOV-01", "GOV-02", "GOV-04"],
+    "medium_priority": ["GOV-03"],
+    "low_priority": [],
+    "total": 4
+  },
+  "data_driven": true,
+  "api_version": "v1.0-recommendation"
+}
 ```
 
 ---
@@ -479,26 +659,9 @@ Cabut API key (hanya untuk panggilan dari backend Wizdam Sikola).
 | 429 | Rate limit exceeded |
 | 500 | Internal server error |
 | 502 | External API error (ORCID/Scopus/Crossref tidak merespons) |
+| 503 | API key eksternal (Scopus) tidak dikonfigurasi |
 
 **Format error:**
 ```json
 { "status": "error", "code": 400, "message": "orcid is required" }
 ```
-
----
-
-## Cache
-
-Semua modul menggunakan filesystem cache di `writable/cache/{module}/` (gzip, TTL 7 hari).  
-Tambahkan `"refresh": true` atau `?refresh=true` untuk memaksa fetch ulang dari sumber eksternal.
-
-| Module | Lokasi Cache | TTL |
-|--------|-------------|-----|
-| WizdamScore | `writable/cache/wizdamscore/` | 7 hari |
-| SDG | `writable/cache/sdg/` | 7 hari |
-| ORCID | `writable/cache/orchid/` | 24 jam |
-| Scopus | `writable/cache/scopus/` | 30 hari |
-| Journal | `writable/cache/journal/` | 7 hari |
-| SINTA | `writable/cache/sintajournal/` | 7 hari |
-| Citation | `writable/cache/citation/` | 7 hari |
-| Batch partial | `writable/cache/wizdamscore/partial_*` | 7 hari |

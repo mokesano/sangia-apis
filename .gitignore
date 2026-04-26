@@ -1,0 +1,23 @@
+# Environment & secrets
+.env
+.env.*
+!.env.example
+
+# Composer vendor (we commit library/ intentionally)
+vendor/
+
+# Runtime — cache and logs never belong in version control
+writable/
+logs/
+*.log
+
+# OS & IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# PHP build artifacts
+*.phar

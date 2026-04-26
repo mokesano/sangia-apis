@@ -4,25 +4,23 @@ declare(strict_types=1);
 namespace Sangia\Core\Modules\Citation;
 
 use Sangia\Core\Shared\ApiClients\CrossrefClient;
-use Sangia\Core\Shared\Services\CacheService;
 
 /**
  * Citation Module — multi-source citation retrieval for a DOI.
- * Sources: OpenCitations → Crossref → OpenAlex → Semantic Scholar → Dimensions
+ * Sources: OpenCitations → Crossref → OpenAlex → Semantic Scholar
+ *
+ * No result caching here. Wizdam Sikola owns all persistence:
+ *   response includes 'raw_data' so Wizdam Sikola can save results to its DB.
  */
 class CitationModule
 {
-    private const TIMEOUT    = 15;
-    private const CACHE_TTL  = 604800; // 7 days
-    private const SOURCES    = ['opencitations', 'crossref', 'openalex', 'semantic_scholar', 'dimensions'];
+    private const TIMEOUT = 15;
 
     private CrossrefClient $crossref;
-    private CacheService   $cache;
 
     public function __construct()
     {
         $this->crossref = new CrossrefClient();
-        $this->cache    = new CacheService('Citation');
     }
 
     public function getCitations(string $doi, int $limit = 15, bool $refresh = false): array
@@ -30,38 +28,18 @@ class CitationModule
         $doi = strtolower(trim($doi));
         if (empty($doi)) return $this->error(400, 'doi is required');
 
-        if (!$refresh) {
-            $cached = $this->cache->get('doi', $doi);
-            if ($cached !== false) {
-                $cached['cache_info'] = ['from_cache' => true];
-                return $cached;
-            }
-        }
-
-        // Metadata first
         $meta = $this->fetchMetadata($doi);
 
-        // Citations from all sources
-        $citations = [];
-        $counts    = [];
+        $citations = [
+            'opencitations'   => $this->fetchOpenCitations($doi, $limit),
+            'crossref'        => $this->fetchCrossrefCitedBy($doi, $limit),
+            'openalex'        => $this->fetchOpenAlex($doi, $limit),
+            'semantic_scholar'=> $this->fetchSemanticScholar($doi, $limit),
+        ];
 
-        $oc = $this->fetchOpenCitations($doi, $limit);
-        $citations['opencitations'] = $oc;
-        $counts['opencitations']    = count($oc);
+        $counts = array_map('count', $citations);
 
-        $cr = $this->fetchCrossrefCitedBy($doi, $limit);
-        $citations['crossref'] = $cr;
-        $counts['crossref']    = count($cr);
-
-        $oa = $this->fetchOpenAlex($doi, $limit);
-        $citations['openalex'] = $oa;
-        $counts['openalex']    = count($oa);
-
-        $ss = $this->fetchSemanticScholar($doi, $limit);
-        $citations['semantic_scholar'] = $ss;
-        $counts['semantic_scholar']    = count($ss);
-
-        $result = [
+        return [
             'status'           => 'success',
             'doi'              => $doi,
             'article_metadata' => $meta,
@@ -69,14 +47,19 @@ class CitationModule
             'citation_count'   => $counts,
             'total_unique'     => $this->countUnique($citations),
             'api_version'      => 'v1.2-modular',
+            'data_source'      => 'external_apis',
             'cache_info'       => ['from_cache' => false],
+            // Wizdam Sikola should save this to its citations_cache table
+            'raw_data'         => [
+                'doi'        => $doi,
+                'metadata'   => $meta,
+                'counts'     => $counts,
+                'fetched_at' => date('c'),
+            ],
         ];
-
-        $this->cache->set('doi', $doi, $result);
-        return $result;
     }
 
-    // ── Metadata ─────────────────────────────────────────────────────────────
+    // ── Metadata ──────────────────────────────────────────────────────────────
 
     private function fetchMetadata(string $doi): array
     {
@@ -119,15 +102,15 @@ class CitationModule
 
     private function fetchCrossrefCitedBy(string $doi, int $limit): array
     {
-        $url  = "https://api.crossref.org/works/$doi/references?rows=$limit&mailto=info@sangia.org";
-        $data = $this->httpGet($url);
+        $url   = "https://api.crossref.org/works/$doi/references?rows=$limit&mailto=info@sangia.org";
+        $data  = $this->httpGet($url);
         $items = $data['message']['items'] ?? [];
 
         return array_map(fn($item) => [
-            'citing_doi'  => $item['DOI'] ?? null,
-            'title'       => $item['article-title'] ?? $item['unstructured'] ?? null,
-            'year'        => (int) ($item['year'] ?? 0) ?: null,
-            'source'      => 'crossref',
+            'citing_doi' => $item['DOI'] ?? null,
+            'title'      => $item['article-title'] ?? $item['unstructured'] ?? null,
+            'year'       => (int) ($item['year'] ?? 0) ?: null,
+            'source'     => 'crossref',
         ], array_slice($items, 0, $limit));
     }
 
@@ -150,8 +133,8 @@ class CitationModule
 
     private function fetchSemanticScholar(string $doi, int $limit): array
     {
-        $url  = "https://api.semanticscholar.org/graph/v1/paper/DOI:$doi/citations?limit=$limit&fields=title,year,externalIds";
-        $data = $this->httpGet($url);
+        $url   = "https://api.semanticscholar.org/graph/v1/paper/DOI:$doi/citations?limit=$limit&fields=title,year,externalIds";
+        $data  = $this->httpGet($url);
         $items = $data['data'] ?? [];
 
         return array_map(fn($item) => [

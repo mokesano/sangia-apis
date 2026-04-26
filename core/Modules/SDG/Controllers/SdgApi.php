@@ -11,7 +11,10 @@ use Sangia\Core\Modules\SDG\Services\SdgAnalyzer;
 /**
  * SDG API Controller — handles DOI and ORCID classification requests.
  *
- * ORCID requests use the same anti-timeout batch pattern as WizdamScoreEngine:
+ * No result caching here. Wizdam Sikola owns all persistence.
+ * CacheService is only used for short-lived batch session state (partial accumulator).
+ *
+ * ORCID requests use the anti-timeout batch pattern:
  *   offset=0  → process first BATCH_SIZE works → {status:"processing", next_offset:N}
  *   offset=N  → continue until {status:"success", data:{...}}
  */
@@ -22,76 +25,82 @@ class SdgApi
 
     private OrcidClient    $orcidClient;
     private CrossrefClient $crossrefClient;
-    private CacheService   $cache;
+    private CacheService   $batchState; // batch session state only — NOT result cache
     private SdgAnalyzer    $analyzer;
 
     public function __construct(SdgAnalyzer $analyzer)
     {
         $this->orcidClient    = new OrcidClient();
         $this->crossrefClient = new CrossrefClient();
-        $this->cache          = new CacheService('sdg');
+        $this->batchState     = new CacheService('sdg');
         $this->analyzer       = $analyzer;
     }
 
-    // ── ORCID — batched, anti-timeout ────────────────────────────────────────
-
     /**
-     * @param string $orcid         ORCID iD
-     * @param bool   $forceRefresh  Clear cache and start fresh
-     * @param int    $batchSize     Works processed per call
-     * @param int    $offset        Starting index (0 on first call)
+     * @param string $orcid          ORCID iD
+     * @param bool   $forceRefresh   Ignore supplied data and re-fetch from ORCID
+     * @param int    $batchSize      Works processed per call
+     * @param int    $offset         Starting index (0 on first call)
+     * @param array  $suppliedWorks  Works from Wizdam Sikola DB — skips ORCID cURL
      */
     public function handleOrcidRequest(
         string $orcid,
-        bool   $forceRefresh = false,
-        int    $batchSize    = self::BATCH_SIZE,
-        int    $offset       = 0
+        bool   $forceRefresh   = false,
+        int    $batchSize      = self::BATCH_SIZE,
+        int    $offset         = 0,
+        array  $suppliedWorks  = []
     ): array {
         $orcid = trim($orcid);
 
-        // Return completed cached result on first call (no refresh)
-        if ($offset === 0 && !$forceRefresh) {
-            $cached = $this->cache->get('orcid', $orcid);
-            if ($cached !== false) {
-                $cached['from_cache'] = true;
-                return $cached;
+        // Use supplied works from Wizdam Sikola DB if provided (no ORCID fetch)
+        if (!$forceRefresh && !empty($suppliedWorks)) {
+            $works      = array_slice($suppliedWorks, 0, self::MAX_WORKS);
+            $dataSource = 'wizdam_sikola_db';
+        } else {
+            // Fetch from ORCID API
+            try {
+                $worksRaw = $this->orcidClient->getWorksData($orcid, self::MAX_WORKS);
+            } catch (\Throwable $e) {
+                return $this->error(502, 'ORCID API error: ' . $e->getMessage());
             }
-        }
 
-        // Fetch ORCID works (OrcidClient caches this)
-        try {
-            $worksRaw = $this->orcidClient->getWorksData($orcid, self::MAX_WORKS);
-        } catch (\Throwable $e) {
-            return $this->error(502, 'ORCID API error: ' . $e->getMessage());
-        }
+            $works = [];
+            foreach ($worksRaw['group'] ?? [] as $group) {
+                $summary = $group['work-summary'][0] ?? [];
+                $title   = $summary['title']['title']['value'] ?? '';
+                if (empty($title)) continue;
 
-        $groups = $worksRaw['group'] ?? [];
-        $works  = [];
-        foreach ($groups as $group) {
-            $summary = $group['work-summary'][0] ?? [];
-            $title   = $summary['title']['title']['value'] ?? '';
-            if (empty($title)) continue;
-
-            $extIds = $summary['external-ids']['external-id'] ?? [];
-            $doi    = null;
-            foreach ((array) $extIds as $ext) {
-                if (($ext['external-id-type'] ?? '') === 'doi') {
-                    $doi = $ext['external-id-value'] ?? null;
-                    break;
+                $extIds = $summary['external-ids']['external-id'] ?? [];
+                $doi    = null;
+                foreach ((array) $extIds as $ext) {
+                    if (($ext['external-id-type'] ?? '') === 'doi') {
+                        $doi = $ext['external-id-value'] ?? null;
+                        break;
+                    }
                 }
+
+                $pubDate = $summary['publication-date'] ?? [];
+                $year    = (int) ($pubDate['year']['value'] ?? 0);
+
+                $works[] = [
+                    'title'            => $title,
+                    'doi'              => $doi,
+                    'publication_year' => $year ?: null,
+                ];
             }
-            $works[] = ['title' => $title, 'doi' => $doi];
+
+            $works      = array_slice($works, 0, self::MAX_WORKS);
+            $dataSource = 'orcid_api';
         }
 
-        $works      = array_slice($works, 0, self::MAX_WORKS);
         $totalWorks = count($works);
         $accumKey   = 'orcid_accum_' . md5($orcid);
 
-        // Load or initialise accumulator
+        // Load or initialise batch accumulator
         if ($offset === 0) {
             $accum = [];
         } else {
-            $stored = $this->cache->get('partial', $accumKey);
+            $stored = $this->batchState->get('partial', $accumKey);
             if ($stored === false) {
                 return [
                     'status'  => 'error',
@@ -103,40 +112,37 @@ class SdgApi
         }
 
         // ── Process batch ─────────────────────────────────────────────────────
-        $batch = array_slice($works, $offset, $batchSize);
+        foreach (array_slice($works, $offset, $batchSize) as $work) {
+            $abstract = $work['abstract'] ?? '';
 
-        foreach ($batch as $work) {
-            $abstract = '';
-
-            // Try to enrich with abstract from Crossref if DOI is available
-            if (!empty($work['doi'])) {
+            if (empty($abstract) && !empty($work['doi'])) {
                 try {
                     $crData   = $this->crossrefClient->getWorkData($work['doi']);
                     $abstract = strip_tags($crData['message']['abstract'] ?? '');
                 } catch (\Throwable) {
-                    // abstract stays empty — title-only analysis
+                    // title-only analysis
                 }
             }
 
             try {
-                $analysis = $this->analyzer->analyzeWork($work['title'], $abstract);
+                $analysis = $this->analyzer->analyzeWork($work['title'] ?? '', $abstract);
             } catch (\Throwable) {
                 continue;
             }
 
             $accum[] = [
-                'title'      => substr($work['title'], 0, 100),
-                'doi'        => $work['doi'],
-                'sdgs'       => array_keys($analysis['sdg_confidence'] ?? []),
-                'confidence' => $analysis['sdg_confidence'] ?? [],
-                'analysis'   => $analysis,
+                'title'            => substr($work['title'] ?? '', 0, 100),
+                'doi'              => $work['doi'] ?? null,
+                'publication_year' => $work['publication_year'] ?? null,
+                'sdgs'             => array_keys($analysis['sdg_confidence'] ?? []),
+                'confidence'       => $analysis['sdg_confidence'] ?? [],
             ];
         }
 
-        $this->cache->set('partial', $accumKey, $accum);
+        $this->batchState->set('partial', $accumKey, $accum);
 
         $processed = min($offset + $batchSize, $totalWorks);
-        $isDone    = ($processed >= $totalWorks) || empty($batch);
+        $isDone    = ($processed >= $totalWorks) || ($processed === $offset);
 
         // ── More batches remain ───────────────────────────────────────────────
         if (!$isDone) {
@@ -152,8 +158,8 @@ class SdgApi
             ];
         }
 
-        // ── All works done — aggregate and return ─────────────────────────────
-        $allSdgs    = [];
+        // ── All works done — aggregate ────────────────────────────────────────
+        $allSdgs      = [];
         $worksSummary = [];
 
         foreach ($accum as $item) {
@@ -162,9 +168,10 @@ class SdgApi
             }
             if (!empty($item['sdgs'])) {
                 $worksSummary[] = [
-                    'title' => $item['title'],
-                    'doi'   => $item['doi'],
-                    'sdgs'  => $item['sdgs'],
+                    'title'            => $item['title'],
+                    'doi'              => $item['doi'],
+                    'publication_year' => $item['publication_year'],
+                    'sdgs'             => $item['sdgs'],
                 ];
             }
         }
@@ -178,20 +185,22 @@ class SdgApi
         }
         arsort($sdgSummary);
 
-        $result = [
-            'status'       => 'success',
-            'orcid'        => $orcid,
-            'total_works'  => $totalWorks,
-            'data'         => [
+        return [
+            'status'      => 'success',
+            'orcid'       => $orcid,
+            'total_works' => $totalWorks,
+            'data_source' => $dataSource,
+            'data'        => [
                 'sdg_summary' => $sdgSummary,
                 'works'       => $worksSummary,
             ],
-            'from_cache'   => false,
-            'api_version'  => 'v5.1.8-batch',
+            // Wizdam Sikola should save works_fetched to its DB when data_source=orcid_api
+            'raw_data'    => $dataSource === 'orcid_api' ? [
+                'works'      => $works,
+                'fetched_at' => date('c'),
+            ] : null,
+            'api_version' => 'v5.1.8-batch',
         ];
-
-        $this->cache->set('orcid', $orcid, $result);
-        return $result;
     }
 
     // ── DOI — single work, synchronous ───────────────────────────────────────
@@ -201,14 +210,6 @@ class SdgApi
         $doi = trim($doi);
         if (empty($doi)) {
             return $this->error(400, 'DOI tidak boleh kosong');
-        }
-
-        if (!$forceRefresh) {
-            $cached = $this->cache->get('article', $doi);
-            if ($cached !== false) {
-                $cached['cache_info'] = ['from_cache' => true];
-                return $cached;
-            }
         }
 
         try {
@@ -226,18 +227,15 @@ class SdgApi
 
             $analysis = $this->analyzer->analyzeWork($title, $abstract);
 
-            $result = [
-                'status'      => 'success',
-                'doi'         => $doi,
-                'title'       => $title,
-                'abstract'    => $abstract,
-                'sdg_analysis'=> $analysis,
-                'api_version' => 'v5.1.8-batch',
-                'cache_info'  => ['from_cache' => false],
+            return [
+                'status'       => 'success',
+                'doi'          => $doi,
+                'title'        => $title,
+                'abstract'     => $abstract,
+                'sdg_analysis' => $analysis,
+                'api_version'  => 'v5.1.8-batch',
+                'cache_info'   => ['from_cache' => false],
             ];
-
-            $this->cache->set('article', $doi, $result);
-            return $result;
 
         } catch (\Throwable $e) {
             return $this->error(500, 'Kesalahan internal: ' . $e->getMessage());

@@ -3,24 +3,21 @@ declare(strict_types=1);
 
 namespace Sangia\Core\Modules\Journal;
 
-use Sangia\Core\Shared\Services\CacheService;
-
 /**
- * Journal Module — wraps the existing ScopusAPI class in the monolithic file,
- * providing a clean callable interface with consistent caching.
+ * Journal Module — fetches journal metrics from Scopus.
+ *
+ * No result caching here. Wizdam Sikola owns all persistence:
+ *   response includes 'raw_data' so Wizdam Sikola can save results to its DB.
  */
 class JournalModule
 {
-    private const CACHE_TTL = 604800; // 7 days
-    private const API_BASE  = 'https://api.elsevier.com/content/serial/title';
-    private const TIMEOUT   = 15;
+    private const API_BASE = 'https://api.elsevier.com/content/serial/title';
+    private const TIMEOUT  = 15;
 
-    private CacheService $cache;
     private string $apiKey;
 
     public function __construct()
     {
-        $this->cache  = new CacheService('Journal');
         $this->apiKey = $_ENV['SCOPUS_API_KEY'] ?? getenv('SCOPUS_API_KEY') ?: '';
     }
 
@@ -33,14 +30,6 @@ class JournalModule
 
         $issnFormatted = substr($issn, 0, 4) . '-' . substr($issn, 4);
 
-        if (!$refresh) {
-            $cached = $this->cache->get('journal', $issn);
-            if ($cached !== false) {
-                $cached['cache_info'] = ['from_cache' => true];
-                return $cached;
-            }
-        }
-
         if (empty($this->apiKey)) {
             return $this->error(503, 'Scopus API key not configured');
         }
@@ -50,14 +39,23 @@ class JournalModule
             return $this->error(404, "Journal with ISSN $issnFormatted not found in Scopus");
         }
 
-        $result = array_merge(['status' => 'success', 'api_version' => 'v2.1-modular'], $data, ['cache_info' => ['from_cache' => false]]);
-        $this->cache->set('journal', $issn, $result);
-        return $result;
+        return array_merge(
+            ['status' => 'success', 'api_version' => 'v2.1-modular'],
+            $data,
+            [
+                'cache_info' => ['from_cache' => false],
+                // Wizdam Sikola should save this to its journal_profiles_cache table
+                'raw_data'   => [
+                    'issn'       => $issnFormatted,
+                    'metrics'    => $data,
+                    'fetched_at' => date('c'),
+                ],
+            ]
+        );
     }
 
     private function fetchFromScopus(string $issn): array
     {
-        // Try ISSN search with ENHANCED view for citescore + quartile data
         $views = ['CITESCORE', 'STANDARD'];
 
         foreach ($views as $view) {
@@ -83,7 +81,6 @@ class JournalModule
         $latestSjr  = is_array($sjrList)  ? ($sjrList[0]  ?? []) : $sjrList;
         $latestSnip = is_array($snipList) ? ($snipList[0] ?? []) : $snipList;
 
-        // Extract quartile from subject areas
         $quartile = null;
         $subjects  = [];
         foreach ((array) $subAreas as $area) {
