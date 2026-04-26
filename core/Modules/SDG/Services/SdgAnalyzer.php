@@ -13,14 +13,19 @@ class SdgAnalyzer
     private LevelV4Evaluator $v4Evaluator;
     private SdgDictionary $dictionary;
 
+    /** Optional per-version weight overrides */
+    private array $weightOverride = [];
+
     public function __construct(
         SdgClassifier $classifier,
         LevelV4Evaluator $v4Evaluator,
-        SdgDictionary $dictionary
+        SdgDictionary $dictionary,
+        array $weightOverride = []
     ) {
-        $this->classifier = $classifier;
-        $this->v4Evaluator = $v4Evaluator;
-        $this->dictionary = $dictionary;
+        $this->classifier     = $classifier;
+        $this->v4Evaluator    = $v4Evaluator;
+        $this->dictionary     = $dictionary;
+        $this->weightOverride = $weightOverride;
     }
 
     /**
@@ -37,7 +42,7 @@ class SdgAnalyzer
         $sdgContributorTypes = [];
         $contributionPathways = [];
 
-        // Adaptasi Bobot (Sama seperti kode asli: jika teks terlalu pendek/tanpa abstrak)
+        // Adaptasi Bobot — gunakan override versi jika ada, lalu sesuaikan panjang teks
         $weights = $this->determineWeights(strlen($fullText));
 
         foreach ($baseScores as $sdgCode => $baseScore) {
@@ -122,22 +127,31 @@ class SdgAnalyzer
      */
     private function determineWeights(int $textLength): array
     {
-        if ($textLength < 100) {
-            // Teks sangat pendek (misal hanya judul)
+        // Per-version override takes priority
+        if (!empty($this->weightOverride)) {
+            $w = $this->weightOverride;
             return [
-                'KEYWORD_WEIGHT' => 0.40,
-                'SIMILARITY_WEIGHT' => 0.40,
-                'SUBSTANTIVE_WEIGHT' => 0.10,
-                'CAUSAL_WEIGHT' => 0.10
+                'KEYWORD_WEIGHT'     => $w['keyword']     ?? SdgConfig::KEYWORD_WEIGHT,
+                'SIMILARITY_WEIGHT'  => $w['similarity']  ?? SdgConfig::SIMILARITY_WEIGHT,
+                'SUBSTANTIVE_WEIGHT' => $w['substantive'] ?? SdgConfig::SUBSTANTIVE_WEIGHT,
+                'CAUSAL_WEIGHT'      => $w['causal']      ?? SdgConfig::CAUSAL_WEIGHT,
             ];
         }
 
-        // Standar V4
+        if ($textLength < 100) {
+            return [
+                'KEYWORD_WEIGHT'     => 0.40,
+                'SIMILARITY_WEIGHT'  => 0.40,
+                'SUBSTANTIVE_WEIGHT' => 0.10,
+                'CAUSAL_WEIGHT'      => 0.10,
+            ];
+        }
+
         return [
-            'KEYWORD_WEIGHT' => SdgConfig::KEYWORD_WEIGHT,
-            'SIMILARITY_WEIGHT' => SdgConfig::SIMILARITY_WEIGHT,
+            'KEYWORD_WEIGHT'     => SdgConfig::KEYWORD_WEIGHT,
+            'SIMILARITY_WEIGHT'  => SdgConfig::SIMILARITY_WEIGHT,
             'SUBSTANTIVE_WEIGHT' => SdgConfig::SUBSTANTIVE_WEIGHT,
-            'CAUSAL_WEIGHT' => SdgConfig::CAUSAL_WEIGHT
+            'CAUSAL_WEIGHT'      => SdgConfig::CAUSAL_WEIGHT,
         ];
     }
 
