@@ -325,7 +325,7 @@ class TrendAnalysisEngine
             'trend'          => $trend,
             'summary'        => [
                 'total_citations'     => $cumulative,
-                'peak_citation_year'  => $yearlyMetrics[array_search(max($citCounts), $citCounts)]['year'] ?? null,
+                'peak_citation_year'  => !empty($citCounts) ? ($yearlyMetrics[array_search(max($citCounts), $citCounts)]['year'] ?? null) : null,
                 'h_index'             => (int) ($scopus['author']['h_index'] ?? 0),
             ],
         ];

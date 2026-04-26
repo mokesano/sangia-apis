@@ -316,10 +316,10 @@ class PolicyRecommendationEngine
     private function enrichRecommendations(array $recommendations, string $timeHorizon): array
     {
         $horizonYears = match ($timeHorizon) {
-            'short'  => '1–2 tahun',
-            'long'   => '5–10 tahun',
-            default  => '3–5 tahun',
-        ];
+            'short'  => '1-2 tahun',
+            'long'   => '5-10 tahun',
+            default  => '3-5 tahun',
+        };
 
         return array_map(function ($rec) use ($horizonYears) {
             $rec['time_horizon']    = $horizonYears;
