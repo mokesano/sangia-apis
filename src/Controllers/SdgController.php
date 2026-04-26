@@ -27,14 +27,15 @@ class SdgController extends BaseController
         $offset   = max(0, (int) ($body['offset']     ?? $_GET['offset']     ?? 0));
         $batch    = max(1, min(50, (int) ($body['batch_size'] ?? $_GET['batch_size'] ?? 20)));
 
+        // Wizdam Sikola supplies pre-fetched works from its DB to avoid redundant cURL
+        $suppliedWorks = $body['supplied_works'] ?? [];
+
         // Merge: VersionConfig defaults ← request-level weights from Wizdam Sikola admin
-        // Wizdam Sikola controls weights fully; VersionConfig values are fallback only.
-        $versionCfg   = VersionConfig::get($version);
+        $versionCfg     = VersionConfig::get($version);
         $requestWeights = $body['weights'] ?? [];
         if (!empty($requestWeights)) {
             $versionCfg = array_merge($versionCfg, array_intersect_key($requestWeights, [
-                'keyword' => 1, 'similarity' => 1, 'substantive' => 1, 'causal' => 1,
-                'max_sdgs' => 1,
+                'keyword' => 1, 'similarity' => 1, 'substantive' => 1, 'causal' => 1, 'max_sdgs' => 1,
             ]));
             if (isset($requestWeights['thresholds'])) {
                 $versionCfg['thresholds'] = array_merge(
@@ -51,14 +52,14 @@ class SdgController extends BaseController
         $api        = new SdgApi($analyzer);
 
         if ($orcid) {
-            Response::json($api->handleOrcidRequest($orcid, $refresh, $batch, $offset));
+            Response::json($api->handleOrcidRequest($orcid, $refresh, $batch, $offset, $suppliedWorks));
         } elseif ($doi) {
             Response::json($api->handleDoiRequest($doi, $refresh));
         } elseif ($title || $abstract) {
             $result = $analyzer->analyzeWork($title, $abstract);
             Response::json(['status' => 'success', 'version' => $version, 'weights_applied' => $versionCfg, 'sdg_analysis' => $result]);
         } else {
-            Response::json(['status' => 'error', 'message' => 'Provide orcid, doi, or title+abstract'], 400);
+            Response::json(['status' => 'error', 'message' => 'Provide orcid, doi, title+abstract, or orcid+supplied_works'], 400);
         }
     }
 
@@ -82,25 +83,29 @@ class SdgController extends BaseController
             'service'    => 'Sangia API Engine',
             'version'    => 'v1',
             'endpoints'  => [
-                'GET  /health'                  => 'Service health check (no key)',
-                'GET  /api/v1/sdg/versions'     => 'List SDG versions + default weights (no key)',
-                'POST /api/v1/sdg/v0/classify'  => 'SDG v0 — keyword-only',
-                'POST /api/v1/sdg/v1/classify'  => 'SDG v1 — keyword + similarity',
-                'POST /api/v1/sdg/v2/classify'  => 'SDG v2 — bilingual dictionary',
-                'POST /api/v1/sdg/v3/classify'  => 'SDG v3 — contributor types',
-                'POST /api/v1/sdg/v4/classify'  => 'SDG v4 — substantive + causal',
-                'POST /api/v1/sdg/v5/classify'  => 'SDG v5 — causal-boosted (default stable)',
-                'POST /api/v1/sdg/v5e/classify' => 'SDG v5e — metadata-enhanced (experimental)',
-                'POST /api/v1/sdg/classify'     => 'SDG classify — alias for v5',
-                'GET  /api/v1/scopus/author'    => 'Scopus author profile + publications',
-                'GET  /api/v1/orcid/profile'    => 'ORCID researcher profile + works',
-                'GET  /api/v1/citation/doi'     => 'Multi-source citation data for a DOI',
-                'GET  /api/v1/journal/metrics'  => 'Scopus journal metrics (CiteScore, SJR, SNIP)',
-                'GET  /api/v1/sinta/score'      => 'SINTA journal impact score',
-                'POST /api/v1/impact/calculate' => 'Wizdam Impact Score — composite (batched)',
-                'POST /api/v1/admin/keys/revoke'=> 'Revoke an API key (service calls only)',
+                'GET  /health'                         => 'Service health check (no key)',
+                'GET  /api/v1/sdg/versions'            => 'List SDG versions + default weights (no key)',
+                'POST /api/v1/sdg/v0/classify'         => 'SDG v0 — keyword-only',
+                'POST /api/v1/sdg/v1/classify'         => 'SDG v1 — keyword + similarity',
+                'POST /api/v1/sdg/v2/classify'         => 'SDG v2 — bilingual dictionary',
+                'POST /api/v1/sdg/v3/classify'         => 'SDG v3 — contributor types',
+                'POST /api/v1/sdg/v4/classify'         => 'SDG v4 — substantive + causal',
+                'POST /api/v1/sdg/v5/classify'         => 'SDG v5 — causal-boosted (default stable)',
+                'POST /api/v1/sdg/v5e/classify'        => 'SDG v5e — metadata-enhanced (experimental)',
+                'POST /api/v1/sdg/classify'            => 'SDG classify — alias for v5',
+                'GET  /api/v1/scopus/author'           => 'Scopus author profile + publications',
+                'GET  /api/v1/orcid/profile'           => 'ORCID researcher profile + works',
+                'GET  /api/v1/citation/doi'            => 'Multi-source citation data for a DOI',
+                'GET  /api/v1/journal/metrics'         => 'Scopus journal metrics (CiteScore, SJR, SNIP)',
+                'GET  /api/v1/sinta/score'             => 'SINTA journal impact score',
+                'POST /api/v1/impact/calculate'        => 'Wizdam Impact Score — composite (batched)',
+                'POST /api/v1/trend/analyze'           => 'Trend Analysis — impact_trajectory | sdg_evolution | collaboration_network | citation_growth',
+                'POST /api/v1/recommendation/policy'   => 'Policy Recommendations — government | institution | industry | researcher | community',
+                'POST /api/v1/admin/keys/revoke'       => 'Revoke an API key (service calls only)',
             ],
-            'weight_override' => 'All classify + impact endpoints accept a "weights" object in the request body to override scoring weights set in the Wizdam Sikola admin panel.',
+            'supplied_data'   => 'All ORCID-based endpoints accept "supplied_works" and "supplied_scopus" in request body to skip external API calls when Wizdam Sikola already has the data.',
+            'raw_data'        => 'When wizdam-apis fetches from external APIs, response includes "raw_data" for Wizdam Sikola to persist in its database.',
+            'weight_override' => 'All classify + impact endpoints accept a "weights" object to override scoring weights set in the Wizdam Sikola admin panel.',
             'batch_info'      => 'ORCID-based endpoints support offset + batch_size to avoid timeout.',
             'auth'            => 'X-API-Key: wz_{user_id}_{timestamp}_{hmac16}',
             'key_info'        => 'Dapatkan API key di Wizdam Sikola → Profil → API Keys',

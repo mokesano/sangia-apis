@@ -3,33 +3,39 @@ declare(strict_types=1);
 
 namespace Sangia\Core\Modules\Scopus;
 
-use Sangia\Core\Shared\Services\CacheService;
-
 /**
- * Scopus Module — OOP wrapper over the Scopus Elsevier API.
- * Replaces the procedural UserScopus_v33.php with a callable class.
+ * Scopus Module — fetches author profile and publications.
+ *
+ * No result caching here. Wizdam Sikola owns all persistence:
+ *   - pass $suppliedData to skip the Scopus cURL call entirely
+ *   - response always includes 'raw_data' so Wizdam Sikola can save it to DB
  */
 class ScopusModule
 {
-    private const API_BASE    = 'https://api.elsevier.com/content';
-    private const OPENALEX    = 'https://api.openalex.org';
-    private const MAX_COUNT   = 25;
-    private const TIMEOUT     = 15;
-    private const CACHE_TTL   = 2592000; // 30 days
+    private const API_BASE  = 'https://api.elsevier.com/content';
+    private const OPENALEX  = 'https://api.openalex.org';
+    private const MAX_COUNT = 25;
+    private const TIMEOUT   = 15;
 
-    private CacheService $cache;
     private string $apiKey;
 
     public function __construct()
     {
-        $this->cache  = new CacheService('Scopus');
         $this->apiKey = $_ENV['SCOPUS_API_KEY'] ?? getenv('SCOPUS_API_KEY') ?: '';
     }
 
-    // ── Public API ────────────────────────────────────────────────────────────
-
-    public function getAuthor(string $authorId, int $count = 10, bool $refresh = false): array
-    {
+    /**
+     * @param string     $authorId      Scopus Author ID
+     * @param int        $count         Max publications to return
+     * @param bool       $refresh       Force re-fetch even if Wizdam Sikola supplied data
+     * @param array|null $suppliedData  Author data already in Wizdam Sikola DB — skips cURL
+     */
+    public function getAuthor(
+        string $authorId,
+        int    $count        = 10,
+        bool   $refresh      = false,
+        ?array $suppliedData = null
+    ): array {
         $authorId = trim($authorId);
         $count    = min(self::MAX_COUNT, max(1, $count));
 
@@ -37,19 +43,17 @@ class ScopusModule
             return $this->error(400, 'authorid is required');
         }
 
-        $cacheKey = $authorId . '_' . $count;
-
-        if (!$refresh) {
-            $cached = $this->cache->get('author', $cacheKey);
-            if ($cached !== false) {
-                $cached['cache_info'] = ['from_cache' => true];
-                return $cached;
-            }
+        // Use supplied data from Wizdam Sikola DB (no external call needed)
+        if (!$refresh && $suppliedData !== null) {
+            return array_merge($suppliedData, [
+                'data_source' => 'wizdam_sikola_db',
+                'cache_info'  => ['from_cache' => true],
+            ]);
         }
 
+        // Fetch fresh from Scopus / OpenAlex
         $author = $this->fetchAuthorProfile($authorId);
         if (empty($author)) {
-            // Fallback to OpenAlex
             $author = $this->fetchAuthorFromOpenAlex($authorId);
             if (empty($author)) {
                 return $this->error(404, "Author '$authorId' not found in Scopus or OpenAlex");
@@ -59,15 +63,21 @@ class ScopusModule
         $publications = $this->fetchAuthorPublications($authorId, $count);
 
         $result = [
-            'status'         => 'success',
-            'author_id'      => $authorId,
-            'author'         => $author,
-            'publications'   => $publications,
-            'api_version'    => 'v6.0-modular',
-            'cache_info'     => ['from_cache' => false],
+            'status'       => 'success',
+            'author_id'    => $authorId,
+            'author'       => $author,
+            'publications' => $publications,
+            'api_version'  => 'v6.0-modular',
+            'data_source'  => $author['data_source'] ?? 'scopus',
+            'cache_info'   => ['from_cache' => false],
+            // Wizdam Sikola should save these fields to its DB
+            'raw_data'     => [
+                'author'       => $author,
+                'publications' => $publications,
+                'fetched_at'   => date('c'),
+            ],
         ];
 
-        $this->cache->set('author', $cacheKey, $result);
         return $result;
     }
 
@@ -82,25 +92,25 @@ class ScopusModule
 
         if (empty($data)) return [];
 
-        $profile = $data['author-retrieval-response'][0] ?? [];
+        $profile  = $data['author-retrieval-response'][0] ?? [];
         $coredata = $profile['coredata'] ?? [];
         $preferred = $profile['author-profile']['preferred-name'] ?? [];
-        $affil  = $profile['author-profile']['affiliation-current']['affiliation'] ?? [];
+        $affil    = $profile['author-profile']['affiliation-current']['affiliation'] ?? [];
 
         return [
-            'author_id'              => $authorId,
-            'first_name'             => $preferred['given-name'] ?? '',
-            'last_name'              => $preferred['surname'] ?? '',
-            'full_name'              => trim(($preferred['given-name'] ?? '') . ' ' . ($preferred['surname'] ?? '')),
-            'display_name'           => $preferred['indexed-name'] ?? '',
-            'affiliation'            => is_array($affil) ? ($affil['preferred-name']['$'] ?? '') : '',
-            'h_index'                => (int) ($profile['h-index'] ?? 0),
-            'document_count'         => (int) ($coredata['document-count'] ?? 0),
-            'citation_count'         => (int) ($coredata['citation-count'] ?? 0),
-            'cited_by_count'         => (int) ($coredata['cited-by-count'] ?? 0),
-            'orcid'                  => $coredata['orcid'] ?? null,
-            'scopus_id'              => $authorId,
-            'data_source'            => 'scopus',
+            'author_id'      => $authorId,
+            'first_name'     => $preferred['given-name'] ?? '',
+            'last_name'      => $preferred['surname'] ?? '',
+            'full_name'      => trim(($preferred['given-name'] ?? '') . ' ' . ($preferred['surname'] ?? '')),
+            'display_name'   => $preferred['indexed-name'] ?? '',
+            'affiliation'    => is_array($affil) ? ($affil['preferred-name']['$'] ?? '') : '',
+            'h_index'        => (int) ($profile['h-index'] ?? 0),
+            'document_count' => (int) ($coredata['document-count'] ?? 0),
+            'citation_count' => (int) ($coredata['citation-count'] ?? 0),
+            'cited_by_count' => (int) ($coredata['cited-by-count'] ?? 0),
+            'orcid'          => $coredata['orcid'] ?? null,
+            'scopus_id'      => $authorId,
+            'data_source'    => 'scopus',
         ];
     }
 
@@ -137,19 +147,19 @@ class ScopusModule
 
         return array_map(function ($entry) {
             return [
-                'eid'           => $entry['eid'] ?? '',
-                'doi'           => $entry['prism:doi'] ?? $entry['doi'] ?? null,
-                'title'         => $entry['dc:title'] ?? '',
-                'journal'       => $entry['prism:publicationName'] ?? '',
-                'volume'        => $entry['prism:volume'] ?? null,
-                'issue'         => $entry['prism:issueIdentifier'] ?? null,
-                'pages'         => $entry['prism:pageRange'] ?? null,
-                'year'          => (int) substr($entry['prism:coverDate'] ?? '0', 0, 4),
-                'cover_date'    => $entry['prism:coverDate'] ?? null,
-                'cited_by_count'=> (int) ($entry['citedby-count'] ?? 0),
-                'authors_string'=> $entry['dc:creator'] ?? '',
-                'document_type' => $entry['subtypeDescription'] ?? 'Article',
-                'open_access'   => (bool) ($entry['openaccess'] ?? false),
+                'eid'            => $entry['eid'] ?? '',
+                'doi'            => $entry['prism:doi'] ?? $entry['doi'] ?? null,
+                'title'          => $entry['dc:title'] ?? '',
+                'journal'        => $entry['prism:publicationName'] ?? '',
+                'volume'         => $entry['prism:volume'] ?? null,
+                'issue'          => $entry['prism:issueIdentifier'] ?? null,
+                'pages'          => $entry['prism:pageRange'] ?? null,
+                'year'           => (int) substr($entry['prism:coverDate'] ?? '0', 0, 4),
+                'cover_date'     => $entry['prism:coverDate'] ?? null,
+                'cited_by_count' => (int) ($entry['citedby-count'] ?? 0),
+                'authors_string' => $entry['dc:creator'] ?? '',
+                'document_type'  => $entry['subtypeDescription'] ?? 'Article',
+                'open_access'    => (bool) ($entry['openaccess'] ?? false),
             ];
         }, $entries);
     }

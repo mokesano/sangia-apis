@@ -16,10 +16,13 @@ use Sangia\Core\Shared\Services\CacheService;
  *
  * Formula: Composite = Academic×0.40 + Social×0.25 + Economic×0.20 + SDG×0.15
  *
- * Anti-timeout batch pattern (from KONSEP/KODE_ANTI-TIMEOUT):
- *   Each request processes BATCH_SIZE works and returns quickly.
- *   Client (Wizdam Sikola) loops until status === "success".
+ * No result caching here. Wizdam Sikola owns all persistence:
+ *   - pass $suppliedWorks / $suppliedScopus to skip external API calls
+ *   - response includes 'raw_data' so Wizdam Sikola can save fresh fetches to DB
  *
+ * CacheService is only used for short-lived batch session state (partial accumulator).
+ *
+ * Anti-timeout batch pattern:
  *   Call 1: offset=0  → {status:"processing", next_offset:20, progress:{...}}
  *   Call 2: offset=20 → {status:"processing", next_offset:40, progress:{...}}
  *   Call 3: offset=40 → {status:"success", composite:..., pillars:{...}}
@@ -34,18 +37,18 @@ class WizdamScoreEngine
     ];
 
     private const MAX_WORKS  = 50;
-    private const BATCH_SIZE = 20; // ~4-6s per batch on average hardware
+    private const BATCH_SIZE = 20;
 
     private OrcidModule  $orcid;
     private ScopusModule $scopus;
     private SdgAnalyzer  $sdgAnalyzer;
-    private CacheService $cache;
+    private CacheService $batchState; // batch session state only — NOT result cache
 
     public function __construct()
     {
-        $this->orcid  = new OrcidModule();
-        $this->scopus = new ScopusModule();
-        $this->cache  = new CacheService('WizdamScore');
+        $this->orcid      = new OrcidModule();
+        $this->scopus     = new ScopusModule();
+        $this->batchState = new CacheService('WizdamScore');
 
         $dictionary        = new SdgDictionary();
         $classifier        = new SdgClassifier($dictionary);
@@ -54,57 +57,61 @@ class WizdamScoreEngine
     }
 
     /**
-     * Calculate Wizdam Impact Score with batched SDG analysis.
-     *
-     * @param string      $orcid
-     * @param string|null $scopusId  Optional Scopus author ID
-     * @param array       $social    Social pillar data from Wizdam Sikola
-     * @param array       $economic  Economic / practical pillar data from Wizdam Sikola
-     * @param bool        $refresh   Force recalculation (clears cache)
-     * @param int         $batchSize Works processed per HTTP request
-     * @param int         $offset    Batch starting index (0 = first call)
+     * @param string      $orcid           ORCID iD
+     * @param string|null $scopusId        Scopus Author ID
+     * @param array       $social          Social pillar data (0–100 per metric)
+     * @param array       $economic        Economic pillar data (0–100 per metric)
+     * @param bool        $refresh         Force re-fetch even if supplied data present
+     * @param int         $batchSize       Works processed per HTTP request
+     * @param int         $offset          Batch starting index (0 = first call)
+     * @param array       $weightOverride  Wizdam Sikola admin composite weights
+     * @param array       $suppliedWorks   Works from Wizdam Sikola DB — skips ORCID cURL
+     * @param array|null  $suppliedPerson  Person summary from Wizdam Sikola DB
+     * @param array|null  $suppliedScopus  Scopus author data from Wizdam Sikola DB
      */
     public function calculate(
         string  $orcid,
-        ?string $scopusId      = null,
-        array   $social        = [],
-        array   $economic      = [],
-        bool    $refresh       = false,
-        int     $batchSize     = self::BATCH_SIZE,
-        int     $offset        = 0,
-        array   $weightOverride = []  // Wizdam Sikola admin-configurable composite weights
+        ?string $scopusId       = null,
+        array   $social         = [],
+        array   $economic       = [],
+        bool    $refresh        = false,
+        int     $batchSize      = self::BATCH_SIZE,
+        int     $offset         = 0,
+        array   $weightOverride = [],
+        array   $suppliedWorks  = [],
+        ?array  $suppliedPerson = null,
+        ?array  $suppliedScopus = null
     ): array {
         $orcid = trim($orcid);
         if (!preg_match('/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/', $orcid)) {
             return $this->error(400, "Invalid ORCID: $orcid");
         }
 
-        $scoreKey = $orcid . ($scopusId ? "_$scopusId" : '');
-
-        // Return completed cached result on the first call (no refresh)
-        if ($offset === 0 && !$refresh) {
-            $cached = $this->cache->get('score', $scoreKey);
-            if ($cached !== false) {
-                $cached['cache_info'] = ['from_cache' => true];
-                return $cached;
+        // ── Resolve ORCID data ────────────────────────────────────────────────
+        if (!$refresh && !empty($suppliedWorks)) {
+            $works         = array_slice($suppliedWorks, 0, self::MAX_WORKS);
+            $personSummary = $suppliedPerson ?? [];
+            $orcidSource   = 'wizdam_sikola_db';
+            $rawOrcidData  = null;
+        } else {
+            $orcidData = $this->orcid->getProfile($orcid, $refresh && $offset === 0);
+            if (($orcidData['status'] ?? '') === 'error') {
+                return $this->error(502, $orcidData['message'] ?? 'ORCID fetch failed');
             }
+            $works         = array_slice($orcidData['works'] ?? [], 0, self::MAX_WORKS);
+            $personSummary = $orcidData['person_summary'] ?? [];
+            $orcidSource   = 'orcid_api';
+            $rawOrcidData  = $orcidData['raw_data'] ?? null;
         }
 
-        // Fetch ORCID profile — OrcidModule caches this after the first call
-        $orcidData = $this->orcid->getProfile($orcid, $refresh && $offset === 0);
-        if (($orcidData['status'] ?? '') === 'error') {
-            return $this->error(502, $orcidData['message'] ?? 'ORCID fetch failed');
-        }
-
-        $works      = array_slice($orcidData['works'] ?? [], 0, self::MAX_WORKS);
         $totalWorks = count($works);
-        $accumKey   = 'accum_' . md5($scoreKey);
+        $accumKey   = 'accum_' . md5($orcid . ($scopusId ? "_$scopusId" : ''));
 
-        // Load or initialise the SDG accumulator for this batch session
+        // Load or initialise batch accumulator
         if ($offset === 0) {
             $accum = ['sdg' => [], 'by_work' => []];
         } else {
-            $stored = $this->cache->get('partial', $accumKey);
+            $stored = $this->batchState->get('partial', $accumKey);
             if ($stored === false) {
                 return [
                     'status'  => 'error',
@@ -116,9 +123,7 @@ class WizdamScoreEngine
         }
 
         // ── Process this batch ────────────────────────────────────────────────
-        $batch = array_slice($works, $offset, $batchSize);
-
-        foreach ($batch as $work) {
+        foreach (array_slice($works, $offset, $batchSize) as $work) {
             $title    = $work['title']    ?? '';
             $abstract = $work['abstract'] ?? '';
             if (empty($title)) continue;
@@ -139,13 +144,12 @@ class WizdamScoreEngine
             }
         }
 
-        // Persist accumulator so the next batch can continue from here
-        $this->cache->set('partial', $accumKey, $accum);
+        $this->batchState->set('partial', $accumKey, $accum);
 
         $processed = min($offset + $batchSize, $totalWorks);
-        $isDone    = ($processed >= $totalWorks) || empty($batch);
+        $isDone    = ($processed >= $totalWorks) || empty(array_slice($works, $offset, $batchSize));
 
-        // ── More batches remain — instruct client to continue ─────────────────
+        // ── More batches remain ───────────────────────────────────────────────
         if (!$isDone) {
             return [
                 'status'      => 'processing',
@@ -160,17 +164,29 @@ class WizdamScoreEngine
         }
 
         // ── Final batch — compute composite score ─────────────────────────────
-        $scopusData = [];
+
+        // Resolve Scopus data
+        $rawScopusData = null;
         if ($scopusId) {
-            $scopusData = $this->scopus->getAuthor($scopusId, 25, false);
+            if (!$refresh && $suppliedScopus !== null) {
+                $scopusData   = $suppliedScopus;
+                $scopusSource = 'wizdam_sikola_db';
+            } else {
+                $scopusFull    = $this->scopus->getAuthor($scopusId, 25, false);
+                $scopusData    = $scopusFull;
+                $scopusSource  = 'scopus_api';
+                $rawScopusData = $scopusFull['raw_data'] ?? null;
+            }
+        } else {
+            $scopusData   = [];
+            $scopusSource = 'none';
         }
 
-        $academicScore = $this->calculateAcademic($orcidData, $scopusData);
+        $academicScore = $this->calculateAcademic($works, $scopusData);
         [$sdgScore, $sdgTags, $sdgByWork] = $this->buildSdgScore($accum, $totalWorks);
         $socialScore   = $this->computeSocialScore($social);
         $economicScore = $this->computeEconomicScore($economic);
 
-        // Wizdam Sikola admin weights take priority; self::WEIGHTS are fallback defaults
         $w = [
             'academic' => (float) ($weightOverride['academic'] ?? self::WEIGHTS['academic']),
             'social'   => (float) ($weightOverride['social']   ?? self::WEIGHTS['social']),
@@ -189,7 +205,7 @@ class WizdamScoreEngine
         $result = [
             'status'           => 'success',
             'orcid'            => $orcid,
-            'name'             => $orcidData['person_summary']['name'] ?? null,
+            'name'             => $personSummary['name'] ?? null,
             'composite'        => $composite,
             'pillars'          => [
                 'academic'  => round($academicScore, 2),
@@ -200,23 +216,38 @@ class WizdamScoreEngine
             'weights'          => $w,
             'sdg_tags'         => $sdgTags,
             'sdg_by_work'      => $sdgByWork,
-            'academic_metrics' => $this->academicMetrics($orcidData, $scopusData),
+            'academic_metrics' => $this->academicMetrics($works, $scopusData),
             'social_inputs'    => $social,
             'economic_inputs'  => $economic,
+            'data_sources'     => [
+                'orcid'  => $orcidSource,
+                'scopus' => $scopusSource,
+            ],
             'api_version'      => 'v1.1-batch',
             'calculated_at'    => date('c'),
             'cache_info'       => ['from_cache' => false],
         ];
 
-        $this->cache->set('score', $scoreKey, $result);
+        // Include raw fetched data for Wizdam Sikola to persist
+        $rawData = [];
+        if ($rawOrcidData !== null) {
+            $rawData['orcid'] = $rawOrcidData;
+        }
+        if ($rawScopusData !== null) {
+            $rawData['scopus'] = $rawScopusData;
+        }
+        if (!empty($rawData)) {
+            $result['raw_data'] = $rawData;
+        }
+
         return $result;
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function calculateAcademic(array $orcidData, array $scopusData): float
+    private function calculateAcademic(array $works, array $scopusData): float
     {
-        $pubCount      = count($orcidData['works'] ?? []);
+        $pubCount      = count($works);
         $hIndex        = (int) ($scopusData['author']['h_index']        ?? 0);
         $citationCount = (int) ($scopusData['author']['citation_count'] ?? 0);
 
@@ -279,10 +310,10 @@ class WizdamScoreEngine
         return empty($values) ? 0.0 : round(array_sum($values) / count($values), 2);
     }
 
-    private function academicMetrics(array $orcidData, array $scopusData): array
+    private function academicMetrics(array $works, array $scopusData): array
     {
         return [
-            'publication_count' => count($orcidData['works'] ?? []),
+            'publication_count' => count($works),
             'h_index'           => (int) ($scopusData['author']['h_index']        ?? 0),
             'citation_count'    => (int) ($scopusData['author']['citation_count'] ?? 0),
             'cited_by_count'    => (int) ($scopusData['author']['cited_by_count'] ?? 0),

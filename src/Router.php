@@ -8,9 +8,11 @@ use Sangia\Api\Controllers\CitationController;
 use Sangia\Api\Controllers\ImpactController;
 use Sangia\Api\Controllers\JournalController;
 use Sangia\Api\Controllers\OrcidController;
+use Sangia\Api\Controllers\RecommendationController;
 use Sangia\Api\Controllers\ScopusController;
 use Sangia\Api\Controllers\SdgController;
 use Sangia\Api\Controllers\SintaController;
+use Sangia\Api\Controllers\TrendController;
 use Sangia\Gateway\ApiKeyMiddleware;
 use Sangia\Api\Middleware\RateLimitMiddleware;
 
@@ -21,14 +23,11 @@ class Router
         $method = $_SERVER['REQUEST_METHOD'];
         $uri    = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/', '/') ?: '/';
 
-        // Public routes — no API key required
         if ($this->routePublic($uri, $method)) return;
 
-        // Authentication + rate limiting gate
         ApiKeyMiddleware::validate();
         RateLimitMiddleware::check();
 
-        // Protected routes — API key required
         if ($this->routeProtected($uri, $method)) return;
 
         Response::json(['status' => 'error', 'message' => "$method $uri not found"], 404);
@@ -40,6 +39,7 @@ class Router
     {
         if ($method === 'GET' && ($uri === '/health' || $uri === '/api/v1/health')) {
             Response::json(['status' => 'up', 'service' => 'Sangia API Engine', 'time' => date('c')]);
+            return true;
         }
 
         if ($method === 'GET' && $uri === '/api/v1/sdg/versions') {
@@ -65,7 +65,7 @@ class Router
             return true;
         }
 
-        // SDG — alias /api/v1/sdg/classify → v5
+        // SDG — alias → v5
         if ($method === 'POST' && $uri === '/api/v1/sdg/classify') {
             header('Location: /api/v1/sdg/v5/classify', true, 307);
             exit;
@@ -101,9 +101,21 @@ class Router
             return true;
         }
 
-        // Wizdam Impact Score
+        // Wizdam Impact Score (batched)
         if ($method === 'POST' && $uri === '/api/v1/impact/calculate') {
             (new ImpactController())->calculate();
+            return true;
+        }
+
+        // Trend Analysis Engine (API #7)
+        if ($method === 'POST' && $uri === '/api/v1/trend/analyze') {
+            (new TrendController())->analyze();
+            return true;
+        }
+
+        // Policy Recommendation Engine (API #8)
+        if ($method === 'POST' && $uri === '/api/v1/recommendation/policy') {
+            (new RecommendationController())->policy();
             return true;
         }
 
