@@ -13,19 +13,24 @@ class SdgAnalyzer
     private LevelV4Evaluator $v4Evaluator;
     private SdgDictionary $dictionary;
 
-    /** Optional per-version weight overrides */
-    private array $weightOverride = [];
+    /**
+     * Full version config: weights + thresholds.
+     * Keys: keyword, similarity, substantive, causal, thresholds:{min,confidence,high}, max_sdgs
+     * Source: VersionConfig::get($version) merged with request-level overrides from Wizdam Sikola.
+     * Hardcoded values in SdgConfig are fallback only.
+     */
+    private array $config = [];
 
     public function __construct(
         SdgClassifier $classifier,
         LevelV4Evaluator $v4Evaluator,
         SdgDictionary $dictionary,
-        array $weightOverride = []
+        array $config = []
     ) {
-        $this->classifier     = $classifier;
-        $this->v4Evaluator    = $v4Evaluator;
-        $this->dictionary     = $dictionary;
-        $this->weightOverride = $weightOverride;
+        $this->classifier  = $classifier;
+        $this->v4Evaluator = $v4Evaluator;
+        $this->dictionary  = $dictionary;
+        $this->config      = $config;
     }
 
     /**
@@ -60,13 +65,16 @@ class SdgAnalyzer
                 ($causal['score'] * $weights['CAUSAL_WEIGHT'])
             );
 
+            $minScore   = $this->threshold('min',  SdgConfig::MIN_SCORE_THRESHOLD);
+            $confScore  = $this->threshold('confidence', SdgConfig::CONFIDENCE_THRESHOLD);
+
             // Hanya proses yang melampaui batas minimal
-            if ($combinedScore > SdgConfig::MIN_SCORE_THRESHOLD) {
+            if ($combinedScore > $minScore) {
                 // Tentukan Tipe Kontributor
                 $contributorInfo = $this->v4Evaluator->determineContributorType(
-                    $combinedScore, 
-                    $causal['score'], 
-                    $substantive['score'] // Menggunakan substantive sebagai proxy impact untuk contoh ini
+                    $combinedScore,
+                    $causal['score'],
+                    $substantive['score']
                 );
 
                 // Susun array detail per SDG
@@ -75,23 +83,22 @@ class SdgAnalyzer
                     'confidence_level' => $this->getConfidenceLevel($combinedScore),
                     'contributor_type' => $contributorInfo,
                     'components' => [
-                        'keyword_score' => round((float)$baseScore['keyword_freq'], 3),
-                        'similarity_score' => round((float)$baseScore['similarity'], 3),
-                        'substantive_score' => round($substantive['score'], 3),
-                        'causal_score' => round($causal['score'], 3)
+                        'keyword_score'     => round((float) $baseScore['keyword_freq'], 3),
+                        'similarity_score'  => round((float) $baseScore['similarity'],   3),
+                        'substantive_score' => round($substantive['score'],              3),
+                        'causal_score'      => round($causal['score'],                   3),
                     ],
                     'evidence' => [
-                        'causal_relationship' => $causal['evidence'] ?? []
-                    ]
+                        'causal_relationship' => $causal['evidence'] ?? [],
+                    ],
                 ];
 
                 // Filter berdasarkan Confidence Threshold
-                if ($combinedScore >= SdgConfig::CONFIDENCE_THRESHOLD) {
+                if ($combinedScore >= $confScore) {
                     $filteredSdgs[] = $sdgCode;
                     $sdgConfidence[$sdgCode] = round($combinedScore, 3);
                     $sdgContributorTypes[$sdgCode] = $contributorInfo['type'];
-                    
-                    // Ambil dominan pathway jika ada (disimplifikasi)
+
                     $pathways = SdgConfig::getContributionPathways($sdgCode);
                     if (!empty($pathways)) {
                         $contributionPathways[$sdgCode] = array_key_first($pathways);
@@ -103,10 +110,12 @@ class SdgAnalyzer
         // Urutkan dari confidence tertinggi
         arsort($sdgConfidence);
 
+        $maxSdgs = $this->config['max_sdgs'] ?? SdgConfig::MAX_SDGS_PER_WORK;
+
         // Batasi maksimal SDG per karya
-        if (count($filteredSdgs) > SdgConfig::MAX_SDGS_PER_WORK) {
-            $sdgConfidence = array_slice($sdgConfidence, 0, SdgConfig::MAX_SDGS_PER_WORK, true);
-            $filteredSdgs = array_keys($sdgConfidence);
+        if (count($filteredSdgs) > $maxSdgs) {
+            $sdgConfidence = array_slice($sdgConfidence, 0, $maxSdgs, true);
+            $filteredSdgs  = array_keys($sdgConfidence);
             
             // Filter array lain agar sinkron
             $sdgContributorTypes = array_intersect_key($sdgContributorTypes, $sdgConfidence);
@@ -123,28 +132,24 @@ class SdgAnalyzer
     }
 
     /**
-     * Penyesuaian bobot adaptif berdasarkan panjang teks
+     * Determine scoring weights.
+     * Priority: request override (from Wizdam Sikola admin) → version config → SdgConfig defaults.
      */
     private function determineWeights(int $textLength): array
     {
-        // Per-version override takes priority
-        if (!empty($this->weightOverride)) {
-            $w = $this->weightOverride;
+        $c = $this->config;
+
+        if (!empty($c)) {
             return [
-                'KEYWORD_WEIGHT'     => $w['keyword']     ?? SdgConfig::KEYWORD_WEIGHT,
-                'SIMILARITY_WEIGHT'  => $w['similarity']  ?? SdgConfig::SIMILARITY_WEIGHT,
-                'SUBSTANTIVE_WEIGHT' => $w['substantive'] ?? SdgConfig::SUBSTANTIVE_WEIGHT,
-                'CAUSAL_WEIGHT'      => $w['causal']      ?? SdgConfig::CAUSAL_WEIGHT,
+                'KEYWORD_WEIGHT'     => (float) ($c['keyword']     ?? SdgConfig::KEYWORD_WEIGHT),
+                'SIMILARITY_WEIGHT'  => (float) ($c['similarity']  ?? SdgConfig::SIMILARITY_WEIGHT),
+                'SUBSTANTIVE_WEIGHT' => (float) ($c['substantive'] ?? SdgConfig::SUBSTANTIVE_WEIGHT),
+                'CAUSAL_WEIGHT'      => (float) ($c['causal']      ?? SdgConfig::CAUSAL_WEIGHT),
             ];
         }
 
         if ($textLength < 100) {
-            return [
-                'KEYWORD_WEIGHT'     => 0.40,
-                'SIMILARITY_WEIGHT'  => 0.40,
-                'SUBSTANTIVE_WEIGHT' => 0.10,
-                'CAUSAL_WEIGHT'      => 0.10,
-            ];
+            return ['KEYWORD_WEIGHT' => 0.40, 'SIMILARITY_WEIGHT' => 0.40, 'SUBSTANTIVE_WEIGHT' => 0.10, 'CAUSAL_WEIGHT' => 0.10];
         }
 
         return [
@@ -155,13 +160,18 @@ class SdgAnalyzer
         ];
     }
 
-    /**
-     * Konversi angka menjadi level
-     */
+    /** Read a threshold, checking config['thresholds'] first, then falling back to $default. */
+    private function threshold(string $key, float $default): float
+    {
+        return (float) ($this->config['thresholds'][$key] ?? $default);
+    }
+
     private function getConfidenceLevel(float $score): string
     {
-        if ($score > SdgConfig::HIGH_CONFIDENCE_THRESHOLD) return 'High';
-        if ($score > SdgConfig::CONFIDENCE_THRESHOLD) return 'Middle';
+        $high = $this->threshold('high', SdgConfig::HIGH_CONFIDENCE_THRESHOLD);
+        $mid  = $this->threshold('confidence', SdgConfig::CONFIDENCE_THRESHOLD);
+        if ($score > $high) return 'High';
+        if ($score > $mid)  return 'Middle';
         return 'Low';
     }
 }

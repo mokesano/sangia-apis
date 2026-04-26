@@ -66,12 +66,13 @@ class WizdamScoreEngine
      */
     public function calculate(
         string  $orcid,
-        ?string $scopusId  = null,
-        array   $social    = [],
-        array   $economic  = [],
-        bool    $refresh   = false,
-        int     $batchSize = self::BATCH_SIZE,
-        int     $offset    = 0
+        ?string $scopusId      = null,
+        array   $social        = [],
+        array   $economic      = [],
+        bool    $refresh       = false,
+        int     $batchSize     = self::BATCH_SIZE,
+        int     $offset        = 0,
+        array   $weightOverride = []  // Wizdam Sikola admin-configurable composite weights
     ): array {
         $orcid = trim($orcid);
         if (!preg_match('/^\d{4}-\d{4}-\d{4}-\d{3}[\dX]$/', $orcid)) {
@@ -169,11 +170,19 @@ class WizdamScoreEngine
         $socialScore   = $this->computeSocialScore($social);
         $economicScore = $this->computeEconomicScore($economic);
 
+        // Wizdam Sikola admin weights take priority; self::WEIGHTS are fallback defaults
+        $w = [
+            'academic' => (float) ($weightOverride['academic'] ?? self::WEIGHTS['academic']),
+            'social'   => (float) ($weightOverride['social']   ?? self::WEIGHTS['social']),
+            'economic' => (float) ($weightOverride['economic'] ?? self::WEIGHTS['economic']),
+            'sdg'      => (float) ($weightOverride['sdg']      ?? self::WEIGHTS['sdg']),
+        ];
+
         $composite = round(
-            ($academicScore  * self::WEIGHTS['academic'])  +
-            ($socialScore    * self::WEIGHTS['social'])    +
-            ($economicScore  * self::WEIGHTS['economic'])  +
-            ($sdgScore       * self::WEIGHTS['sdg']),
+            ($academicScore  * $w['academic'])  +
+            ($socialScore    * $w['social'])    +
+            ($economicScore  * $w['economic'])  +
+            ($sdgScore       * $w['sdg']),
             2
         );
 
@@ -188,7 +197,7 @@ class WizdamScoreEngine
                 'economic'  => round($economicScore, 2),
                 'sdg'       => round($sdgScore,      2),
             ],
-            'weights'          => self::WEIGHTS,
+            'weights'          => $w,
             'sdg_tags'         => $sdgTags,
             'sdg_by_work'      => $sdgByWork,
             'academic_metrics' => $this->academicMetrics($orcidData, $scopusData),
