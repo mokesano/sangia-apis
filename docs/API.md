@@ -587,24 +587,44 @@ Rekomendasi kebijakan berbasis data riset.
   "status": "success",
   "stakeholder_type": "government",
   "domain": "sdg_achievement",
-  "time_horizon": "medium_term",
   "region": "Indonesia",
+  "time_horizon_key": "medium_term",
+  "context_summary": {
+    "data_driven": true,
+    "researchers": 1250,
+    "strong_sdgs": ["SDG4", "SDG7"],
+    "weak_sdgs": ["SDG14", "SDG15"],
+    "region": "Indonesia"
+  },
   "recommendations": [
     {
       "id": "GOV-01",
       "priority": "high",
-      "category": "funding",
-      "title": "Targeted Research Funding for SDG Gaps",
-      "description": "Allocate dedicated funding streams...",
-      "implementation": ["Establish SDG research grants", "Create inter-ministry coordination"],
-      "success_metrics": ["Increase SDG14/15 publications by 40%"],
-      "expected_impact": "high"
+      "category": "infrastructure",
+      "target_sdgs": ["SDG4", "SDG9", "SDG17"],
+      "activity_keys": ["modernize_research_labs", "expand_digital_library", "build_hpc_center"],
+      "expected_impact": { "research_capacity_increase": "40%", "international_collaboration_growth": "60%" },
+      "time_horizon_key": "medium_term",
+      "implementation": {
+        "horizon_key": "medium_term",
+        "steps": [
+          { "phase": "phase_1", "activity_key": "modernize_research_labs" },
+          { "phase": "phase_2", "activity_key": "expand_digital_library" },
+          { "phase": "phase_3", "activity_key": "build_hpc_center" }
+        ]
+      },
+      "success_metrics": {
+        "tracking_period": "annual",
+        "review_mechanism": "periodic_committee_review",
+        "targets": { "research_capacity_increase": "40%" }
+      }
     }
   ],
   "priority_matrix": {
-    "immediate": ["GOV-04"],
-    "short_term": ["GOV-01", "GOV-02"],
-    "long_term": ["GOV-03"]
+    "high_priority": ["GOV-01", "GOV-02", "GOV-04"],
+    "medium_priority": ["GOV-03"],
+    "low_priority": [],
+    "total": 4
   },
   "data_driven": true,
   "api_version": "v1.0-recommendation"
