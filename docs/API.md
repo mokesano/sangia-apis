@@ -11,22 +11,31 @@
 
 ## Daftar Endpoint
 
-| Method | Endpoint | Auth | Keterangan |
-|--------|----------|------|------------|
-| GET | `/health` | Publik | Status layanan |
-| GET | `/api/v1` | Publik | Katalog endpoint |
-| GET | `/api/v1/sdg/versions` | Publik | Daftar versi SDG + bobot default |
-| POST | `/api/v1/sdg/{version}/classify` | API Key | Klasifikasi SDG |
-| POST | `/api/v1/sdg/classify` | API Key | Alias v5 |
-| GET | `/api/v1/scopus/author` | API Key | Profil author Scopus |
-| GET | `/api/v1/orcid/profile` | API Key | Profil peneliti ORCID |
-| GET | `/api/v1/citation/doi` | API Key | Sitasi multi-sumber |
-| GET | `/api/v1/journal/metrics` | API Key | Metrik jurnal Scopus |
-| GET | `/api/v1/sinta/score` | API Key | Skor jurnal SINTA |
-| POST | `/api/v1/impact/calculate` | API Key | Wizdam Impact Score |
-| POST | `/api/v1/trend/analyze` | API Key | Trend Analysis |
-| POST | `/api/v1/recommendation/policy` | API Key | Policy Recommendations |
-| POST | `/api/v1/admin/keys/revoke` | API Key | Cabut API key |
+| Method | Endpoint | Auth | Dokumentasi |
+|--------|----------|------|-------------|
+| GET | `/health` | Publik | — |
+| GET | `/api/v1` | Publik | — |
+| GET | `/api/v1/sdg/versions` | Publik | [sdg-versions.md](endpoints/sdg-versions.md) |
+| POST | `/api/v1/sdg/{version}/classify` | API Key | [sdg-classify.md](endpoints/sdg-classify.md) |
+| POST | `/api/v1/sdg/classify` | API Key | Alias → v5, lihat sdg-classify.md |
+| GET | `/api/v1/scopus/author` | API Key | [scopus-author.md](endpoints/scopus-author.md) |
+| GET | `/api/v1/orcid/profile` | API Key | [orcid-profile.md](endpoints/orcid-profile.md) |
+| GET | `/api/v1/citation/doi` | API Key | [citation-doi.md](endpoints/citation-doi.md) |
+| GET | `/api/v1/journal/metrics` | API Key | [journal-metrics.md](endpoints/journal-metrics.md) |
+| GET | `/api/v1/sinta/score` | API Key | [sinta-score.md](endpoints/sinta-score.md) |
+| POST | `/api/v1/impact/calculate` | API Key | [impact-calculate.md](endpoints/impact-calculate.md) |
+| POST | `/api/v1/trend/analyze` | API Key | [trend-analyze.md](endpoints/trend-analyze.md) |
+| POST | `/api/v1/recommendation/policy` | API Key | [recommendation-policy.md](endpoints/recommendation-policy.md) |
+| POST | `/api/v1/admin/keys/revoke` | API Key | [admin-keys-revoke.md](endpoints/admin-keys-revoke.md) |
+
+### Dokumentasi Lengkap per Endpoint
+
+Setiap endpoint memiliki dokumentasi terpisah di [`docs/endpoints/`](endpoints/) yang mencakup:
+- Request parameters dan body lengkap
+- Response schema dengan contoh JSON
+- Daftar error codes
+- Panduan penggunaan umum
+- Panduan integrasi di Wizdam Sikola (kode PHP + SQL)
 
 ---
 
