@@ -405,8 +405,9 @@ class TrendAnalysisEngine
 
     private function parseStartYear(string $timeRange): int
     {
+        if ($timeRange === 'all') return 1900;
         $years = (int) filter_var($timeRange, FILTER_SANITIZE_NUMBER_INT);
-        return date('Y') - max(1, $years ?: 5);
+        return (int) date('Y') - max(1, $years ?: 5);
     }
 
     private function error(int $code, string $message): array

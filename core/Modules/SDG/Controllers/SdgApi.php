@@ -209,13 +209,13 @@ class SdgApi
     {
         $doi = trim($doi);
         if (empty($doi)) {
-            return $this->error(400, 'DOI tidak boleh kosong');
+            return $this->error(400, 'doi is required');
         }
 
         try {
             $crossrefData = $this->crossrefClient->getWorkData($doi);
             if (empty($crossrefData)) {
-                return $this->error(404, 'Data DOI tidak ditemukan di Crossref.');
+                return $this->error(404, 'DOI not found in Crossref');
             }
 
             $title    = $crossrefData['message']['title'][0] ?? '';
