@@ -17,7 +17,7 @@ class RecommendationController extends BaseController
         $stakeholderType   = trim($body['stakeholder_type']    ?? 'government');
         $domain            = trim($body['domain']              ?? 'general');
         $timeHorizon       = trim($body['time_horizon']        ?? 'medium');
-        $region            = trim($body['region']              ?? 'Indonesia');
+        $region            = trim($body['region']              ?? '');
         $researchLandscape = $body['research_landscape']       ?? [];
 
         Response::json(
