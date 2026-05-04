@@ -259,7 +259,7 @@ Detail lengkap: [SECURITY.md](https://github.com/mokesano/wizdam-apis/blob/maste
 
 <p align="center">
   <br>
-  <sub>Dibangun dengan ❤️ sebagai bagian dari ekosistem <strong>Wizdam Frontedge</strong></sub>
+  <creator>Dibangun dengan ❤️ sebagai bagian dari ekosistem <strong>Wizdam Frontedge</strong></creator>
   <br><br>
   <a href="https://github.com/mokesano/wizdam-apis/stargazers">
     <img src="https://img.shields.io/github/stars/mokesano/wizdam-apis?style=social" alt="GitHub Stars">
@@ -268,5 +268,5 @@ Detail lengkap: [SECURITY.md](https://github.com/mokesano/wizdam-apis/blob/maste
     <img src="https://img.shields.io/github/forks/mokesano/wizdam-apis?style=social" alt="GitHub Forks">
   </a>
   <br><br>
-  <sub>© 2025–2026 Rochmady. Dilisensikan di bawah MIT License.</sub>
+  <credit>© 2025–2026 Rochmady. Dilisensikan di bawah MIT License.</credit>
 </p>
