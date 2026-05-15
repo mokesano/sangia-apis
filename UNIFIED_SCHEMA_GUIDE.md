@@ -377,14 +377,12 @@ DB::table('api_keys')->insert([
   'key_hash' => hash('sha256', $key),
   'user_id' => $clientId,
   'is_active' => 1,
-  'permissions_json' => json_encode(['endpoints' => [
-    '/api/v1/orcid/profile',
-    '/api/v1/citation/doi',
-    '/api/v1/impact/calculate',
-    '/api/v1/trend/analyze'
-  ]]),
   'created_at' => now()
 ]);
+
+// NOTE: permissions_json column exists in schema but is NOT enforced by ApiKeyMiddleware.
+// Current auth only validates HMAC + checks is_active = 0. 
+// Any valid key can call all endpoints. Endpoint-scoping is a future feature.
 ```
 
 ---
@@ -433,10 +431,14 @@ GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publications TO 'wizdam_mapper'
 GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.work_sdgs TO 'wizdam_mapper'@'%';
 GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.ecosystem_cache TO 'wizdam_mapper'@'%';
 
--- wizdam-sikola: Identity layer
+-- wizdam-sikola: Identity + knowledge base writer
 CREATE USER 'wizdam_sikola'@'%' IDENTIFIED BY 'sikola_password';
 GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.institutions TO 'wizdam_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.researchers TO 'wizdam_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publications TO 'wizdam_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publication_authors TO 'wizdam_sikola'@'%';
 GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.analytics_snapshots TO 'wizdam_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.ecosystem_cache TO 'wizdam_sikola'@'%';
 
 -- SDGs-analytics: Read-only
 CREATE USER 'wizdam_analytics'@'%' IDENTIFIED BY 'analytics_password';
@@ -466,8 +468,10 @@ FLUSH PRIVILEGES;
 
 ### ☐ wizdam-sikola
 - [ ] Setup DB credentials
-- [ ] Call wizdam-apis for impact, trends
-- [ ] Persist to `analytics_snapshots`
+- [ ] Call wizdam-apis for impact, trends, ORCID profiles
+- [ ] Persist researcher profiles, publications, institution data
+- [ ] Persist analysis results to `analytics_snapshots`
+- [ ] Use least-privilege user: `wizdam_sikola` (not `wizdam_app`)
 
 ### ☐ SDGs-analytics
 - [ ] Setup DB credentials
