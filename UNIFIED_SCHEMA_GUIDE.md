@@ -1,37 +1,85 @@
-# Wizdam Ecosystem — Unified Database Guide
+# Wizdam Ecosystem — Unified Database & API Architecture
 
-Panduan ini berlaku untuk semua repository Wizdam yang menggunakan database terpusat `wizdam_ecosystem`.
+Panduan unified database dan API untuk keempat repository yang terintegrasi dalam ekosistem Wizdam.
 
-| Repository | Domain | Fungsi |
-|---|---|---|
-| `sdgs-mapper` | Research archetype | SDG classification, researcher mapping, analytics backend |
-| `SDGs-analytics` | sangia.org | Analytics, trends, dashboard UI |
-| `wizdam-apis` | API layer | Multi-source citation API, impact scoring, trend analysis, policy recommendations |
-| `wizdam-sikola` | stipwunaraha.ac.id | Core academic platform (OJS-based), researcher profile hub |
+| Repository | Domain | Fungsi | Tech Stack |
+|---|---|---|---|
+| `sdgs-mapper` | sangia.org | Research knowledge base + SDG mapping UI | React + PHP backend |
+| `wizdam-apis` | api.sangia.org | Stateless analysis API (multi-source citations, impact scoring, trends, recommendations) | PHP REST |
+| `SDGs-analytics` | sangia.org/analytics | Analytics dashboard & reporting | React / Chart library |
+| `wizdam-sikola` | stipwunaraha.ac.id | Academic profile platform (OJS-based) | OJS + PHP |
+| `sdg-mono` | Legacy monolith | Consolidated legacy system | PHP/Mixed |
 
-**Semua aplikasi menggunakan satu database terpusat**: `wizdam_ecosystem` di server yang sama.
+**Koneksi data center**: Semua aplikasi menggunakan **satu database terpusat** `wizdam_ecosystem` dan **satu API layer** `wizdam-apis` untuk analisis data.
 
 ---
 
-## Arsitektur Data Flow
+## Arsitektur Sistem
 
 ```
+┌─────────────────────────────────────────────────────┐
+│  Frontend Layer (React/UI)                          │
+├──────────────────────┬──────────────────────────────┤
+│  sdgs-mapper          │  SDGs-analytics              │
+│  (researcher mapping) │  (dashboard)                 │
+│  React + Material-UI  │  React + Chart.js            │
+│                       │                              │
+│  wizdam-sikola        │  sdg-mono                    │
+│  (OJS web UI)         │  (legacy monolith)           │
+│  OJS core            │  PHP/Mixed                    │
+└─────────┬──────────────┬────────────────────────────┘
+          │              │
+          └──────────┬───┘
+                     ↓
+        ┌────────────────────────────┐
+        │   wizdam-apis REST Layer   │
+        │   (Stateless Analysis)     │
+        │                            │
+        │  • Citation API (4 sources)│
+        │  • Impact Calculator       │
+        │  • Trend Analysis          │
+        │  • Policy Recommendation   │
+        │  • ORCID/Scopus Profile    │
+        │  • Key Management (admin)  │
+        └────────────┬───────────────┘
+                     ↓
+        ┌────────────────────────────┐
+        │  wizdam_ecosystem DB       │
+        │  (Shared central DB)       │
+        │                            │
+        │  10 tables (unified)       │
+        │  • institutions            │
+        │  • researchers             │
+        │  • publications            │
+        │  • work_sdgs               │
+        │  • journals                │
+        │  • api_keys / rate_limits  │
+        │  • analytics_snapshots     │
+        │  • ecosystem_cache         │
+        └────────────────────────────┘
+```
+
+---
+
+## Data Flow & Responsibility
+
+### wizdam-apis (Stateless Analysis Engine)
+
+```
+Frontend (React/OJS) 
+    ↓ HTTP POST/GET (with API Key)
+wizdam-apis (API)
+    ↓ fetches from external APIs (if not supplied)
+    OR uses supplied data from database
 External APIs (ORCID, Scopus, Crossref, OpenAlex, SemanticScholar, PubMed)
-        ↓
-wizdam-apis (stateless analysis engine)
-        ↓ returns raw_data + analysis results
-wizdam-sikola (owns all persistence)
-        ↓ stores results
-wizdam_ecosystem DB (shared, central authority)
-        ↓
-sdgs-mapper (knowledge base updates)
-SDGs-analytics (reads for dashboard)
+wizdam_ecosystem DB (reads: api_keys, ecosystem_cache, publications for supplied_works)
+    ↓ returns analysis result + raw_data
+Frontend (stores in DB via own endpoint)
+    ↓
+wizdam_ecosystem DB (persistence: each app owns its writes)
 ```
 
-**Prinsip penting**: 
-- **wizdam-apis TIDAK menyimpan apapun** — semua persistensi dimiliki wizdam-sikola
-- **wizdam-sikola ADALAH DB owner** — ia memutuskan apa yang disimpan, kemana, dan kapan
-- **sdgs-mapper & analytics ADALAH read-heavy** — mereka aggregator dan presenter data
+**Key principle**: wizdam-apis adalah **read-only untuk DB knowledge layer** (hanya baca publications, researchers jika needed). Untuk api_keys, wizdam-apis bisa UPDATE is_active untuk revokasi. Semua **write operasi lainnya** dilakukan oleh masing-masing aplikasi sendiri.
 
 ---
 
@@ -48,11 +96,7 @@ CREATE DATABASE IF NOT EXISTS wizdam_ecosystem
 CREATE USER IF NOT EXISTS 'wizdam_app'@'localhost' IDENTIFIED BY 'GANTI_PASSWORD_INI';
 GRANT ALL PRIVILEGES ON wizdam_ecosystem.* TO 'wizdam_app'@'localhost';
 
--- Optional: per-repo users untuk least-privilege (lihat bagian "Hak Akses")
--- CREATE USER 'wizdam_apis'@'localhost' IDENTIFIED BY 'pass_apis';
--- CREATE USER 'wizdam_sikola'@'localhost' IDENTIFIED BY 'pass_sikola';
--- dst...
-
+-- Optional: per-app users untuk least-privilege (lihat bagian "Hak Akses")
 FLUSH PRIVILEGES;
 SQL
 ```
@@ -62,21 +106,16 @@ SQL
 ```bash
 # Dari sdgs-mapper (canonical schema owner):
 mysql -u root -p wizdam_ecosystem < db/schema.sql
-
-# Dari wizdam-apis (optional additions):
-mysql -u root -p wizdam_ecosystem < db/schema.sql
 ```
-
-> **Catatan**: wizdam-apis tidak memiliki schema sendiri — hanya menggunakan tabel terpusat. File `db/schema.sql` di wizdam-apis hanya berisi dokumentasi referensi.
 
 ---
 
 ## Konfigurasi `.env` (Sama untuk Semua Repo)
 
-Setiap repository memiliki `.env` dengan kredensial DB yang sama:
+Setiap repository memiliki `.env` dengan kredensial yang sama:
 
 ```env
-# Database
+# Database (untuk apps yang perlu menulis)
 DB_DRIVER=mysql
 DB_HOST=localhost
 DB_PORT=3306
@@ -85,345 +124,363 @@ DB_USERNAME=wizdam_app
 DB_PASSWORD=GANTI_PASSWORD_INI
 DB_CHARSET=utf8mb4
 
-# Aplikasi spesifik (wizdam-apis saja)
+# API URLs (untuk frontend/backend apps yang call wizdam-apis)
+WIZDAM_API_URL=https://api.sangia.org
+WIZDAM_API_KEY=<generated-per-client>
+
+# wizdam-apis server config (hanya di wizdam-apis)
 WIZDAM_SHARED_SECRET=<generate-with-openssl-rand-hex-32>
 SEMANTIC_SCHOLAR_API_KEY=<dari-semanticscholar.org/product/api>
 PUBMED_API_KEY=<dari-ncbi.nlm.nih.gov/account>
 OPENALEX_MAILTO=api@sangia.org
+RATE_LIMIT_REQUESTS=60
+RATE_LIMIT_WINDOW=60
 ```
 
 ---
 
 ## Struktur Tabel (10 Entitas Unified)
 
-### Layer 1 — Identity (Institusi & Pengguna)
+### Layer 1 — Identity (Institusi & Peneliti)
 
 | Tabel | Ditulis oleh | Dibaca oleh | Keterangan |
 |---|---|---|---|
-| `institutions` | sikola | semua | Data institusi/universitas (universitas, politeknik, dll) |
-| `researchers` | mapper, sikola | semua | Profil peneliti dari ORCID (unified across all sources) |
-
-**Catatan**: tabel `users`, `user_sessions`, `user_2fa` dikelola oleh OJS/wizdam-sikola sendiri (tidak dalam unified schema).
+| `institutions` | sikola, mapper | semua | Data institusi/universitas |
+| `researchers` | mapper, sikola | semua | Profil peneliti unified (ORCID as PK) |
 
 ### Layer 2 — Knowledge (Publikasi & Jurnal)
 
 | Tabel | Ditulis oleh | Dibaca oleh | Keterangan |
 |---|---|---|---|
-| `journals` | mapper, sikola | semua | Metadata jurnal (ISSN, SJR, SINTA rank, dll) |
-| `publications` | mapper, sikola | semua | Artikel, paper, karya ilmiah (unified: DOI + put_code + title + abstract + metadata) |
-| `publication_authors` | mapper, sikola | semua | Relasi publikasi ↔ peneliti (many-to-many dengan author order) |
+| `journals` | mapper | semua | Metadata jurnal (ISSN, SJR, SINTA) |
+| `publications` | mapper, sikola | semua | Karya ilmiah (DOI as PK) |
+| `publication_authors` | mapper, sikola | semua | Relasi publikasi ↔ peneliti |
 
-### Layer 3 — Intelligence (SDG Mapping & Impact)
-
-| Tabel | Ditulis oleh | Dibaca oleh | Keterangan |
-|---|---|---|---|
-| `work_sdgs` | mapper | analytics, sikola | SDG mapping per publikasi (granular: SDG code + confidence + target) |
-| `ecosystem_cache` | semua | semua | Central cache layer (key-value dengan TTL) untuk API responses, ORCID data, Scopus profiles |
-| `analytics_snapshots` | analytics | analytics, sikola | Snapshot statistik: tren SDG, platform metrics, impact scores per tahun |
-
-### Layer 4 — Platform (API & Jobs)
+### Layer 3 — Intelligence (SDG Mapping & Analytics)
 
 | Tabel | Ditulis oleh | Dibaca oleh | Keterangan |
 |---|---|---|---|
-| `api_keys` | sikola, apis | apis | API key hashes (sha256), revocation status (`is_active`), permissions |
-| `api_rate_limits` | apis | apis | Rate limit counters (fixed-window per user_id) — **opsional** jika file-based cukup |
-| `jobs` | semua | semua | Background job queue (untuk async processing di masa depan) |
+| `work_sdgs` | mapper | analytics, sikola | SDG mapping per publikasi (granular) |
+| `ecosystem_cache` | semua | semua | Central cache layer (TTL-based) |
+| `analytics_snapshots` | analytics | analytics, sikola | Pre-computed aggregates (trends, metrics) |
 
-**Catatan**: wizdam-apis juga menggunakan file-based fallback (`writable/revoked_keys.txt`, `writable/ratelimit/`) untuk offline resilience.
+### Layer 4 — Platform (API & Infrastructure)
+
+| Tabel | Ditulis oleh | Dibaca oleh | Keterangan |
+|---|---|---|---|
+| `api_keys` | sikola (via wizdam-apis) | apis | API key hashes, revocation status |
+| `api_rate_limits` | apis | apis | Rate limit counters (optional) |
+| `jobs` | semua | semua | Background job queue (future) |
 
 ---
 
-## API Keys — Lifecycle
+## Cara Setiap Aplikasi Menggunakan wizdam-apis
+
+### 1️⃣ sdgs-mapper (React + PHP Backend)
+
+#### React Frontend → wizdam-apis
+
+```javascript
+// React component (src/components/ResearcherProfile.jsx)
+import { useQuery } from '@tanstack/react-query';
+
+export function ResearcherProfile({ orcid }) {
+  // Call wizdam-apis for ORCID profile
+  const { data: profile } = useQuery({
+    queryKey: ['orcid-profile', orcid],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/v1/orcid/profile?orcid=${orcid}`,
+        {
+          headers: { 'X-API-Key': process.env.REACT_APP_API_KEY }
+        }
+      );
+      return res.json();
+    }
+  });
+
+  // Call wizdam-apis for impact score
+  const { data: impact } = useQuery({
+    queryKey: ['impact-score', orcid],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/v1/impact/calculate`,
+        {
+          method: 'POST',
+          headers: { 'X-API-Key': process.env.REACT_APP_API_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orcid, social: {}, economic: {} })
+        }
+      );
+      return res.json();
+    }
+  });
+
+  // Call wizdam-apis for citation data
+  const { data: citations } = useQuery({
+    queryKey: ['citations', doi],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/v1/citation/doi?doi=${doi}`,
+        { headers: { 'X-API-Key': process.env.REACT_APP_API_KEY } }
+      );
+      return res.json();
+    }
+  });
+
+  return (
+    <>
+      <ProfileCard data={profile?.person_summary} />
+      <ImpactScoreChart data={impact?.pillars} />
+      <CitationNetworkGraph data={citations?.consolidated} />
+    </>
+  );
+}
+```
+
+#### PHP Backend (sdgs-mapper) → wizdam_ecosystem DB (Persist hasil)
+
+```php
+// sdgs-mapper/app/Http/Controllers/ResearcherController.php
+public function upsertFromOrcid(string $orcid) {
+  // Step 1: Call wizdam-apis untuk fetch fresh data
+  $profile = Http::withHeaders([
+    'X-API-Key' => config('services.wizdam_api.key')
+  ])->get(config('services.wizdam_api.url') . "/api/v1/orcid/profile?orcid=$orcid")
+    ->json();
+
+  // Step 2: Extract Scopus Author ID dari ORCID profile
+  $scopusAuthorId = $profile['person_summary']['scopus_author_id'] ?? null;
+
+  // Step 3: Simpan ke DB (pemilik: sdgs-mapper)
+  Researcher::updateOrCreate(['orcid' => $orcid], [
+    'name' => $profile['person_summary']['name'],
+    'scopus_id' => $scopusAuthorId,
+    'profile_cache_json' => json_encode($profile['raw_data']),
+    'cache_expires_at' => now()->addDays(30)
+  ]);
+
+  return $profile;
+}
+```
+
+---
+
+### 2️⃣ wizdam-sikola (OJS Platform) → wizdam-apis
+
+```php
+// wizdam-sikola/app/Services/ImpactService.php
+public function calculateResearcherImpact(User $user): array {
+  $response = Http::withHeaders([
+    'X-API-Key' => config('services.wizdam_api.service_key')
+  ])->post(config('services.wizdam_api.url') . '/api/v1/impact/calculate', [
+    'orcid' => $user->orcid_id,
+    'social' => [
+      'media_mentions' => $user->media_mentions ?? 0,
+      'policy_citations' => $user->policy_citations ?? 0
+    ],
+    'economic' => [
+      'industry_adoption' => $user->industry_adoption ?? 0,
+      'patents' => Patent::where('user_id', $user->id)->count()
+    ]
+  ]);
+
+  if ($response->ok()) {
+    $result = $response->json();
+    
+    // Cache result locally
+    UserAnalysis::updateOrCreate(
+      ['user_id' => $user->id, 'analysis_type' => 'impact'],
+      ['result_json' => json_encode($result), 'calculated_at' => now()]
+    );
+
+    return $result;
+  }
+
+  return ['status' => 'error'];
+}
+```
+
+---
+
+### 3️⃣ SDGs-analytics (React Dashboard) → wizdam-apis (read-only)
+
+```javascript
+// SDGs-analytics/src/pages/Dashboard.jsx
+import { LineChart, Line, XAxis, YAxis } from 'recharts';
+
+export function TrendDashboard() {
+  const { data: trends } = useQuery({
+    queryKey: ['trends', selectedResearcher.orcid],
+    queryFn: async () => {
+      const res = await fetch(
+        `${process.env.REACT_APP_API_URL}/api/v1/trend/analyze`,
+        {
+          method: 'POST',
+          headers: { 'X-API-Key': process.env.REACT_APP_API_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orcid: selectedResearcher.orcid,
+            analysis_type: 'sdg_evolution',
+            time_range: '5y'
+          })
+        }
+      );
+      return res.json();
+    }
+  });
+
+  return (
+    <LineChart data={trends?.sdg_by_year}>
+      <XAxis dataKey="year" />
+      <YAxis />
+      {trends?.dominant_sdgs?.map(sdg => (
+        <Line key={sdg} type="monotone" dataKey={`SDG${sdg}`} />
+      ))}
+    </LineChart>
+  );
+}
+```
+
+---
+
+### 4️⃣ sdg-mono (Legacy) → wizdam-apis
+
+```php
+// sdg-mono/app/api/researcher.php
+$client = new GuzzleHttp\Client();
+$response = $client->post(
+  'https://api.sangia.org/api/v1/impact/calculate',
+  [
+    'headers' => ['X-API-Key' => getenv('WIZDAM_API_KEY')],
+    'json' => ['orcid' => $_GET['orcid']]
+  ]
+);
+
+$impact = json_decode($response->getBody(), true);
+echo json_encode($impact);
+```
+
+---
+
+## API Keys — Multi-tenant Management
 
 ### Generasi (oleh wizdam-sikola)
 
 ```php
-// Di wizdam-sikola saat user request API key
+// Wizdam Sikola generates key untuk setiap client app
 $secret = env('WIZDAM_SHARED_SECRET'); // shared dengan wizdam-apis
-$key = ApiKeyMiddleware::generateKey($userId, $secret);
-// Format: wz_{user_id}_{timestamp}_{hmac16}
+$clientId = 'sdgsmapper'; // atau 'analytics', 'mono'
+$key = ApiKeyMiddleware::generateKey($clientId, $secret);
+// Format: wz_{client_id}_{timestamp}_{hmac16}
 
 // Simpan hash ke shared DB
 DB::table('api_keys')->insert([
-    'key_hash'   => hash('sha256', $key),
-    'user_id'    => $userId,
-    'is_active'  => 1,
-    'created_at' => now(),
+  'key_hash' => hash('sha256', $key),
+  'user_id' => $clientId,
+  'is_active' => 1,
+  'permissions_json' => json_encode(['endpoints' => [
+    '/api/v1/orcid/profile',
+    '/api/v1/citation/doi',
+    '/api/v1/impact/calculate',
+    '/api/v1/trend/analyze'
+  ]]),
+  'created_at' => now()
 ]);
-
-// Kirim plaintext key ke user (display sekali saja)
-```
-
-### Validasi (oleh wizdam-apis, stateless)
-
-```php
-// ApiKeyMiddleware::validate() — HMAC-based, tidak butuh DB
-$expected_hmac = substr(
-    hash_hmac('sha256', "$userId:$timestamp", $secret),
-    0, 16
-);
-if ($expected_hmac !== $presented_hmac) {
-    reject(401); // Invalid key
-}
-
-// Kemudian cek revokasi
-$revoked = DB::table('api_keys')
-    ->where('key_hash', hash('sha256', $key))
-    ->where('is_active', 0)
-    ->exists();
-if ($revoked) {
-    reject(401); // Key revoked
-}
-```
-
-### Revokasi (oleh wizdam-sikola atau user)
-
-```php
-// POST /api/v1/admin/keys/revoke (dipanggil oleh wizdam-sikola)
-// AdminController::revokeKey()
-
-// Update di DB (primary)
-UPDATE api_keys SET is_active = 0 WHERE key_hash = ?
-
-// Fallback file (jika key belum ada di DB)
-// File: writable/revoked_keys.txt (satu sha256 hash per baris)
 ```
 
 ---
 
-## Rate Limiting
-
-### Database-backed (jika `api_rate_limits` ada)
+## Deployment Architecture (Production)
 
 ```
-Fixed-window per user_id:
-  1. Calculate window_start = floor(now / window_size) * window_size
-  2. UPSERT api_rate_limits (user_id, window_start, hit_count++)
-  3. Check if hit_count > max_requests → reject 429
-  4. Prune old windows
-```
-
-### File-backed (fallback, default)
-
-```
-Sliding window per user MD5(user_id):
-  File: writable/ratelimit/{md5}.json
-  Content: { "hits": [timestamp1, timestamp2, ...] }
-```
-
-**Default limits** (dari `.env.example`):
-```
-RATE_LIMIT_REQUESTS=60    # requests per window
-RATE_LIMIT_WINDOW=60      # window size in seconds (1 req/sec)
-```
-
----
-
-## wizdam-apis — Data Sources & Clients
-
-### Multi-source Citation API (`GET /api/v1/citation/doi`)
-
-Mencari artikel yang **mengutip** DOI yang diberikan dari 4 sumber berbeda:
-
-| Client | Coverage | API Key | Response |
-|---|---|---|---|
-| `OpenCitationsClient` | DOI-indexed journals | Tidak | citing_doi, timespan |
-| `SemanticScholarClient` | 200M+ papers, AI-enriched | `SEMANTIC_SCHOLAR_API_KEY` | citing_doi, title, year, citations_count, authors |
-| `OpenAlexClient` | 250M+ works global graph | `OPENALEX_MAILTO` (polite pool) | citing_doi, title, year, authors |
-| `PubMedClient` | Biomedical/life sciences | `PUBMED_API_KEY` (optional) | citing_doi, title, year, authors |
-
-**Consolidation**: Hasil dari 4 sumber **di-deduplikasi** berdasarkan DOI. Setiap entry dalam hasil final memiliki field `sources: ['openalex', 'semantic_scholar']` menunjukkan sumber mana yang mengkonfirmasi.
-
-### ORCID Profile API (`GET /api/v1/orcid/profile`)
-
-```
-Input:  ORCID iD (e.g., 0000-0002-1234-5678)
-Output: person summary + works list
-
-Supplied data (dari wizdam-sikola):
-  - supplied_works: skip ORCID fetch, langsung proses
-  - supplied_person: skip person fetch
-
-Extracted fields untuk downstream:
-  - scopus_author_id: dari ORCID external-identifiers
-  - researcher_id (RID/Web of Science)
-  - keywords, affiliations, emails
-```
-
-### Impact Score API (`POST /api/v1/impact/calculate`)
-
-4 pilar (batched karena dapat 100+ publikasi):
-
-```
-Academic (40%)    = h-index + citations + publication count (dari ORCID/Scopus)
-Social (25%)      = media mentions + policy citations + social shares (dari wizdam-sikola inputs)
-Economic (20%)    = industry adoption + patents + tech transfer (dari wizdam-sikola inputs)
-SDG (15%)         = coverage + confidence dari work_sdgs
-```
-
-Hasil: `composite = Σ(pillar × weight)` per peneliti.
-
-### Trend Analysis API (`POST /api/v1/trend/analyze`)
-
-Analisis tren peneliti dalam 4 mode:
-
-| Mode | Input | Output |
-|---|---|---|
-| `impact_trajectory` | ORCID + supplied_works | yearly_metrics: pub count, citations, trend slope |
-| `sdg_evolution` | ORCID + titles + years | SDG shift per tahun, emerging SDGs |
-| `collaboration_network` | authors_string per work | co-author network, repeat collaboration %, top collaborators |
-| `citation_growth` | Scopus ID | citation accumulation curve, h-index |
-
-### Policy Recommendation API (`POST /api/v1/recommendation/policy`)
-
-Generate rekomendasi berbasis data untuk 5 stakeholder type:
-
-| Stakeholder | Rekomendasi | Contoh |
-|---|---|---|
-| `government` | GOV-01 to GOV-04 | Modernisasi lab, program beasiswa, TTO, SDG focus |
-| `institution` | INST-01 to INST-03 | Partnership identification, funding strategy, capacity building |
-| `industry` | IND-01 to IND-02 | R&D partnership, sustainability initiatives |
-| `researcher` | RES-01 to RES-02 | Profile optimization, collaboration strategy |
-| `community` | COM-01 | Open access initiatives |
-
-**Output**: language-agnostic (hanya `id`, `activity_keys`, `time_horizon_key` — Wizdam Sikola handle i18n).
-
----
-
-## Cara Menghubungkan Repo ke Database Ini
-
-### PHP (PDO)
-
-```php
-// Option 1: Manual PDO
-$pdo = new PDO(
-    "mysql:host=localhost;dbname=wizdam_ecosystem;charset=utf8mb4",
-    'wizdam_app',
-    'GANTI_PASSWORD_INI',
-    [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-);
-
-// Option 2: Gunakan class Connection (setiap repo punya sendiri)
-// wizdam-apis: Sangia\Database\Connection::get()
-$pdo = Connection::get(); // returns null jika DB tidak terkonfigurasi
-if ($pdo === null) {
-    // Fallback ke file-based operation
-}
-```
-
-### OJS/wizdam-sikola
-
-Di `config.inc.php`:
-
-```ini
-[database]
-driver   = mysqli
-host     = localhost
-username = wizdam_app
-password = GANTI_PASSWORD_INI
-name     = wizdam_ecosystem
-```
-
-### SDGs-analytics (Python)
-
-```python
-import mysql.connector
-
-conn = mysql.connector.connect(
-    host     = "localhost",
-    database = "wizdam_ecosystem",
-    user     = "wizdam_app",
-    password = "GANTI_PASSWORD_INI",
-    charset  = "utf8mb4"
-)
+┌─────────────────────────────────────────┐
+│  API Server (api.sangia.org:443)        │
+│  wizdam-apis (PHP/Apache)               │
+│  • ORCID, Scopus, Crossref, OpenAlex    │
+│  • Authentication (HMAC + api_keys DB)  │
+│  • Rate limiting (DB or file)           │
+└────────────────┬────────────────────────┘
+                 │ HTTP
+┌────────────────┼─────────────────────────┐
+│                │                         │
+↓                ↓                         ↓
+Web Server 1     Web Server 2      Shared MySQL
+(sangia.org)     (stipwunaraha)    (localhost:3306)
+                                   wizdam_ecosystem
+• sdgs-mapper    • wizdam-sikola    • institutions
+• analytics      • OJS              • researchers
+• sdg-mono       users              • publications
+                                    • work_sdgs
+                                    • journals
+                                    • api_keys
+                                    • cache
+                                    • snapshots
 ```
 
 ---
 
-## Hak Akses per Repo (Least Privilege — Opsional)
-
-Untuk keamanan berlapis, buat user terpisah per aplikasi:
+## Hak Akses per Aplikasi (Least Privilege)
 
 ```sql
--- wizdam-apis: key management + rate limits (read-heavy on api_keys)
-CREATE USER 'wizdam_apis'@'localhost' IDENTIFIED BY 'pass_apis';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.api_keys       TO 'wizdam_apis'@'localhost';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.api_rate_limits TO 'wizdam_apis'@'localhost';
+-- wizdam-apis: API key management
+CREATE USER 'wizdam_apis'@'%' IDENTIFIED BY 'api_password';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.api_keys TO 'wizdam_apis'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.api_rate_limits TO 'wizdam_apis'@'%';
 
--- wizdam-sikola: semua identity layer + publikasi
-CREATE USER 'wizdam_sikola'@'localhost' IDENTIFIED BY 'pass_sikola';
-GRANT SELECT, INSERT, UPDATE, DELETE ON wizdam_ecosystem.institutions      TO 'wizdam_sikola'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE ON wizdam_ecosystem.researchers       TO 'wizdam_sikola'@'localhost';
-GRANT SELECT, INSERT, UPDATE, DELETE ON wizdam_ecosystem.publications      TO 'wizdam_sikola'@'localhost';
-GRANT SELECT, INSERT, UPDATE         ON wizdam_ecosystem.publication_authors TO 'wizdam_sikola'@'localhost';
-GRANT SELECT, INSERT, UPDATE         ON wizdam_ecosystem.analytics_snapshots TO 'wizdam_sikola'@'localhost';
-GRANT SELECT, INSERT, UPDATE         ON wizdam_ecosystem.ecosystem_cache    TO 'wizdam_sikola'@'localhost';
+-- sdgs-mapper: Knowledge base writers
+CREATE USER 'wizdam_mapper'@'%' IDENTIFIED BY 'mapper_password';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.researchers TO 'wizdam_mapper'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publications TO 'wizdam_mapper'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.work_sdgs TO 'wizdam_mapper'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.ecosystem_cache TO 'wizdam_mapper'@'%';
 
--- sdgs-mapper: knowledge base updates (mapper/writer)
-CREATE USER 'wizdam_mapper'@'localhost' IDENTIFIED BY 'pass_mapper';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.researchers            TO 'wizdam_mapper'@'localhost';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publications           TO 'wizdam_mapper'@'localhost';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publication_authors    TO 'wizdam_mapper'@'localhost';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.work_sdgs              TO 'wizdam_mapper'@'localhost';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.journals               TO 'wizdam_mapper'@'localhost';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.ecosystem_cache        TO 'wizdam_mapper'@'localhost';
+-- wizdam-sikola: Identity layer
+CREATE USER 'wizdam_sikola'@'%' IDENTIFIED BY 'sikola_password';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.institutions TO 'wizdam_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.analytics_snapshots TO 'wizdam_sikola'@'%';
 
--- SDGs-analytics: read-only
-CREATE USER 'wizdam_analytics'@'localhost' IDENTIFIED BY 'pass_analytics';
-GRANT SELECT ON wizdam_ecosystem.researchers       TO 'wizdam_analytics'@'localhost';
-GRANT SELECT ON wizdam_ecosystem.publications      TO 'wizdam_analytics'@'localhost';
-GRANT SELECT ON wizdam_ecosystem.work_sdgs         TO 'wizdam_analytics'@'localhost';
-GRANT SELECT ON wizdam_ecosystem.analytics_snapshots TO 'wizdam_analytics'@'localhost';
+-- SDGs-analytics: Read-only
+CREATE USER 'wizdam_analytics'@'%' IDENTIFIED BY 'analytics_password';
+GRANT SELECT ON wizdam_ecosystem.researchers TO 'wizdam_analytics'@'%';
+GRANT SELECT ON wizdam_ecosystem.publications TO 'wizdam_analytics'@'%';
+GRANT SELECT ON wizdam_ecosystem.work_sdgs TO 'wizdam_analytics'@'%';
+GRANT SELECT ON wizdam_ecosystem.analytics_snapshots TO 'wizdam_analytics'@'%';
 
 FLUSH PRIVILEGES;
 ```
 
 ---
 
-## Index dan Performa
+## Checklist Implementasi
 
-Tabel-tabel utama sudah memiliki index optimal:
+### ☐ sdgs-mapper
+- [ ] Setup DB credentials
+- [ ] React components call wizdam-apis (ORCID, citation, impact)
+- [ ] Persist results to `researchers`, `publications`, `work_sdgs`
+- [ ] Set API key in `.env`
 
-- **`publications`**: FULLTEXT(title, abstract), INDEX(doi), INDEX(publication_year)
-- **`work_sdgs`**: UNIQUE(publication_id, sdg_code), INDEX(confidence_score)
-- **`api_keys`**: UNIQUE(key_hash), INDEX(is_active)
-- **`researchers`**: INDEX(orcid), INDEX(impact_score), INDEX(affiliation_id)
+### ☐ wizdam-apis
+- [ ] Setup DB credentials
+- [ ] Verify all clients: OpenCitations, SemanticScholar, OpenAlex, PubMed
+- [ ] Rate limiting (DB or file)
+- [ ] Deploy to `api.sangia.org`
 
-Untuk query berat (analytics), gunakan `analytics_snapshots` sebagai pre-computed aggregates.
+### ☐ wizdam-sikola
+- [ ] Setup DB credentials
+- [ ] Call wizdam-apis for impact, trends
+- [ ] Persist to `analytics_snapshots`
 
----
+### ☐ SDGs-analytics
+- [ ] Setup DB credentials
+- [ ] React dashboard calls wizdam-apis
+- [ ] Read from `analytics_snapshots`
 
-## Catatan Teknis
-
-### PostgreSQL Support
-
-Semua kode PHP mendukung:
-```php
-$driver = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-if ($driver === 'pgsql') {
-    // PostgreSQL-specific SQL (ON CONFLICT, SERIAL, dsb.)
-} else {
-    // MySQL/MariaDB (ON DUPLICATE KEY UPDATE, AUTO_INCREMENT)
-}
-```
-
-Untuk PostgreSQL, sesuaikan:
-- `AUTO_INCREMENT` → `SERIAL / BIGSERIAL`
-- `ENUM` → `VARCHAR CHECK` atau custom type
-- `JSON` → native JSON/JSONB type
-- `FULLTEXT` → GIN index on tsvector
-
-### Offline Resilience
-
-wizdam-apis dirancang untuk bekerja tanpa DB:
-- API key validation: stateless HMAC (tidak butuh DB)
-- Rate limiting: fallback ke file `writable/ratelimit/`
-- Revocation: fallback ke file `writable/revoked_keys.txt`
-
-Jika DB down, endpoint lain (impact, trend, recommendation) tetap berjalan asalkan data dikompute dari supplied parameters.
+### ☐ sdg-mono
+- [ ] Update PHP scripts to call wizdam-apis
+- [ ] Set API key in `.env`
 
 ---
 
+**Schema version**: v2.0-multi-consumer  
 **Last updated**: 2026-05-15  
-**Schema version**: v1.0-unified  
-**Canonical authority**: sdgs-mapper/db/schema.sql
+**Canonical authority**: sdgs-mapper/UNIFIED_SCHEMA_GUIDE.md  
+**API version**: v2.0-multisource
