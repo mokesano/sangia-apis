@@ -108,7 +108,8 @@ class SdgController extends BaseController
             'weight_override' => 'All classify + impact endpoints accept a "weights" object to override scoring weights set in the Wizdam Sikola admin panel.',
             'batch_info'      => 'ORCID-based endpoints support offset + batch_size to avoid timeout.',
             'auth'            => 'X-API-Key: wz_{user_id}_{timestamp}_{hmac16}',
-            'key_info'        => 'Dapatkan API key di Wizdam Sikola → Profil → API Keys',
+            'key_source'      => 'wizdam_sikola',
+            'key_path'        => '/profile/api-keys',
         ]);
     }
 }
