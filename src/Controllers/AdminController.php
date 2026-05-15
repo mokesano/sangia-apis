@@ -25,19 +25,16 @@ class AdminController extends BaseController
 
         $pdo = Connection::get();
         if ($pdo !== null) {
-            $driver = $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
-            if ($driver === 'pgsql') {
-                $sql = 'INSERT INTO api_keys (key_hash, user_id, revoked_at)
-                        VALUES (?, ?, NOW())
-                        ON CONFLICT (key_hash) DO UPDATE SET revoked_at = NOW()';
-            } else {
-                $sql = 'INSERT INTO api_keys (key_hash, user_id, revoked_at)
-                        VALUES (?, ?, NOW())
-                        ON DUPLICATE KEY UPDATE revoked_at = NOW()';
+            // Unified schema: set is_active = 0 on existing row (managed by wizdam-sikola)
+            $stmt = $pdo->prepare('UPDATE api_keys SET is_active = 0 WHERE key_hash = ?');
+            $stmt->execute([$hash]);
+            if ($stmt->rowCount() === 0) {
+                // Key not yet in unified DB — write hash to fallback file
+                @mkdir(dirname(self::REVOKE_FILE), 0755, true);
+                file_put_contents(self::REVOKE_FILE, $hash . PHP_EOL, FILE_APPEND | LOCK_EX);
             }
-            $pdo->prepare($sql)->execute([$hash, $userId]);
         } else {
-            // Fallback: write sha256 hash to file (read back by ApiKeyMiddleware)
+            // No DB — write sha256 hash to file (read back by ApiKeyMiddleware)
             @mkdir(dirname(self::REVOKE_FILE), 0755, true);
             file_put_contents(self::REVOKE_FILE, $hash . PHP_EOL, FILE_APPEND | LOCK_EX);
         }

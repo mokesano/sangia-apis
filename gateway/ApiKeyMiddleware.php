@@ -92,8 +92,9 @@ class ApiKeyMiddleware
 
         $pdo = Connection::get();
         if ($pdo !== null) {
+            // Unified schema: api_keys.is_active = 0 means revoked
             $stmt = $pdo->prepare(
-                'SELECT 1 FROM api_keys WHERE key_hash = ? AND revoked_at IS NOT NULL LIMIT 1'
+                'SELECT 1 FROM api_keys WHERE key_hash = ? AND is_active = 0 LIMIT 1'
             );
             $stmt->execute([$hash]);
             return (bool) $stmt->fetchColumn();
