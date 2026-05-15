@@ -25,13 +25,21 @@ class AdminController extends BaseController
 
         $pdo = Connection::get();
         if ($pdo !== null) {
-            // Unified schema: set is_active = 0 on existing row (managed by wizdam-sikola)
+            // Try updating existing row first (row created by wizdam-sikola on key generation)
             $stmt = $pdo->prepare('UPDATE api_keys SET is_active = 0 WHERE key_hash = ?');
             $stmt->execute([$hash]);
             if ($stmt->rowCount() === 0) {
-                // Key not yet in unified DB — write hash to fallback file
-                @mkdir(dirname(self::REVOKE_FILE), 0755, true);
-                file_put_contents(self::REVOKE_FILE, $hash . PHP_EOL, FILE_APPEND | LOCK_EX);
+                // Key not registered yet — insert it as revoked so isRevoked() will find it in DB
+                $driver = $pdo->getAttribute(\PDO::ATTR_DRIVER_NAME);
+                if ($driver === 'pgsql') {
+                    $pdo->prepare('INSERT INTO api_keys (key_hash, is_active) VALUES (?, 0)
+                                   ON CONFLICT (key_hash) DO UPDATE SET is_active = 0')
+                        ->execute([$hash]);
+                } else {
+                    $pdo->prepare('INSERT INTO api_keys (key_hash, is_active) VALUES (?, 0)
+                                   ON DUPLICATE KEY UPDATE is_active = 0')
+                        ->execute([$hash]);
+                }
             }
         } else {
             // No DB — write sha256 hash to file (read back by ApiKeyMiddleware)

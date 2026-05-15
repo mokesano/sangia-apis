@@ -26,10 +26,14 @@ class RateLimitMiddleware
 
         $pdo = Connection::get();
         if ($pdo !== null) {
-            self::checkDb($pdo, $userId, $maxRequests, $windowSecs);
-        } else {
-            self::checkFile($userId, $maxRequests, $windowSecs);
+            try {
+                self::checkDb($pdo, $userId, $maxRequests, $windowSecs);
+                return; // checkDb emits headers and exits on limit, or returns normally
+            } catch (\Throwable) {
+                // api_rate_limits table absent or other DB error — fall through to file
+            }
         }
+        self::checkFile($userId, $maxRequests, $windowSecs);
     }
 
     // ── DB-backed fixed-window counter ────────────────────────────────────────
