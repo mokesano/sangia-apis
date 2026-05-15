@@ -1,6 +1,6 @@
 # 🔌 Wizdam APIs — *SangiaWizdam API Engine*
 
-**Pure analysis engine untuk ekosistem Wizdam Frontedge. Menyediakan REST API stateless untuk klasifikasi SDG, metrik Scopus/ORCID/SINTA, analisis tren, dan rekomendasi kebijakan — tanpa menyimpan data apa pun.**
+**Pure analysis engine untuk ekosistem Sangia Publishing. Menyediakan REST API stateless untuk klasifikasi SDG, metrik Scopus/ORCID/SINTA, analisis tren, dan rekomendasi kebijakan — tanpa menyimpan data apa pun.**
 
 ---
 
@@ -32,7 +32,7 @@
 
 ## 📖 Tentang
 
-**Wizdam APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Wizdam Frontedge**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Wizdam Sikola** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
+**Wizdam APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Sangia Publishing**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Wizdam Sikola** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
 
 > **Base URL**: `https://api.sangia.org`  
 > **Versi API**: `v1`  
@@ -252,14 +252,14 @@ Detail lengkap: [SECURITY.md](https://github.com/mokesano/wizdam-apis/blob/maste
 | 🏷️ Atribusi | 🔗 Referensi |
 | :--- | :--- |
 | **Lead Developer** | [Rochmady (mokesano)](https://github.com/mokesano) |
-| **Ekosistem** | [Wizdam Frontedge](https://github.com/mokesano/wizdam-editorial) |
+| **Ekosistem** | [Sangia Publishing](https://github.com/sangiaorg) |
 | **Dokumentasi API** | [docs/API.md](https://github.com/mokesano/wizdam-apis/blob/master/docs/API.md) |
 
 ---
 
 <p align="center">
   <br>
-  <sub>Dibangun dengan ❤️ sebagai bagian dari ekosistem <strong>Wizdam Frontedge</strong></sub>
+  <creator>Dibangun dengan ❤️ sebagai bagian dari ekosistem <strong>Sangia Publishing</strong></creator>
   <br><br>
   <a href="https://github.com/mokesano/wizdam-apis/stargazers">
     <img src="https://img.shields.io/github/stars/mokesano/wizdam-apis?style=social" alt="GitHub Stars">
@@ -268,5 +268,5 @@ Detail lengkap: [SECURITY.md](https://github.com/mokesano/wizdam-apis/blob/maste
     <img src="https://img.shields.io/github/forks/mokesano/wizdam-apis?style=social" alt="GitHub Forks">
   </a>
   <br><br>
-  <sub>© 2025–2026 Rochmady. Dilisensikan di bawah MIT License.</sub>
+  <credit>© 2025–2026 Rochmady. Dilisensikan di bawah MIT License.</credit>
 </p>
