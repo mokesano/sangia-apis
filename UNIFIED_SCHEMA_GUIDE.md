@@ -363,27 +363,79 @@ echo json_encode($impact);
 
 ## API Keys — Multi-tenant Management
 
-### Generasi (oleh wizdam-sikola)
+### Prinsip: Satu Secret, Semua Aplikasi
+
+`WIZDAM_SHARED_SECRET` adalah **network signing credential** yang harus **identik** di semua `.env` ekosistem:
+
+```
+wizdam-apis         ← validates HMAC
+wizdam-sikola       ← can generateKey()
+sdg-mapper          ← can generateKey()
+sdgs-analytics      ← can generateKey()
+sdg-mono            ← can generateKey()
+```
+
+wizdam-apis **tidak peduli** siapa yang membuat key — hanya memverifikasi HMAC cocok dengan secret yang sama.
+
+### Formula Key (implementasi di semua bahasa)
+
+```
+key = "wz_" + userId + "_" + timestamp + "_" + HMAC-SHA256(userId+":"+timestamp, SECRET)[0..15]
+```
+
+### Generasi Key (dari aplikasi manapun)
 
 ```php
-// Wizdam Sikola generates key untuk setiap client app
-$secret = env('WIZDAM_SHARED_SECRET'); // shared dengan wizdam-apis
-$clientId = 'sdgsmapper'; // atau 'analytics', 'mono'
-$key = ApiKeyMiddleware::generateKey($clientId, $secret);
-// Format: wz_{client_id}_{timestamp}_{hmac16}
+// PHP — berlaku untuk wizdam-sikola, sdg-mapper, sdgs-analytics, sdg-mono
+$secret = env('WIZDAM_SHARED_SECRET'); // sama di semua app
+$userId = (string) auth()->id();       // atau app-level ID
+$ts     = (string) time();
+$hmac16 = substr(hash_hmac('sha256', $userId . ':' . $ts, $secret), 0, 16);
+$key    = 'wz_' . $userId . '_' . $ts . '_' . $hmac16;
 
-// Simpan hash ke shared DB
+// Simpan hash ke shared DB (wizdam_ecosystem.api_keys)
 DB::table('api_keys')->insert([
-  'key_hash' => hash('sha256', $key),
-  'user_id' => $clientId,
-  'is_active' => 1,
-  'created_at' => now()
+  'key_hash'   => hash('sha256', $key),
+  'user_id'    => $userId,
+  'is_active'  => 1,
+  'created_at' => now(),
 ]);
-
-// NOTE: permissions_json column exists in schema but is NOT enforced by ApiKeyMiddleware.
-// Current auth only validates HMAC + checks is_active = 0. 
-// Any valid key can call all endpoints. Endpoint-scoping is a future feature.
+// Kembalikan $key ke user — hanya ditampilkan sekali
 ```
+
+```javascript
+// JavaScript / Node.js — untuk sdg-mapper backend
+const crypto = require('crypto');
+function generateKey(userId, secret) {
+  const ts    = Math.floor(Date.now() / 1000).toString();
+  const hmac  = crypto.createHmac('sha256', secret)
+                      .update(userId + ':' + ts).digest('hex')
+                      .substring(0, 16);
+  return `wz_${userId}_${ts}_${hmac}`;
+}
+```
+
+```python
+# Python — untuk sdg-mono atau analytics
+import hmac, hashlib, time
+def generate_key(user_id: str, secret: str) -> str:
+    ts    = str(int(time.time()))
+    sig   = hmac.new(secret.encode(), f"{user_id}:{ts}".encode(), hashlib.sha256)
+    hmac16 = sig.hexdigest()[:16]
+    return f"wz_{user_id}_{ts}_{hmac16}"
+```
+
+### Revokasi (dari aplikasi manapun)
+
+```php
+// POST ke wizdam-apis /api/v1/admin/keys/revoke dengan service key
+Http::withHeaders(['X-API-Key' => $serviceKey])
+    ->post(config('wizdam_api.url') . '/api/v1/admin/keys/revoke', ['key' => $keyToRevoke]);
+```
+
+> **NOTE**: `permissions_json` column exists in schema but is NOT enforced by ApiKeyMiddleware.
+> Current auth only validates HMAC + checks `is_active = 0`.
+> Any valid key can call all endpoints. Endpoint-scoping is a future feature.
 
 ---
 
