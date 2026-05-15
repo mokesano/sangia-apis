@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Sangia\Gateway;
 
+use Sangia\Database\Connection;
+
 /**
  * HMAC-signed API key middleware.
  *
@@ -10,13 +12,13 @@ namespace Sangia\Gateway;
  *   wz_{user_id}_{issued_ts}_{hmac16}
  *
  * Shared secret: WIZDAM_SHARED_SECRET in both systems' .env
- * Revocation   : append key to writable/revoked_keys.txt (one per line)
+ * Revocation   : sha256(key) stored in api_keys table (DB), or writable/revoked_keys.txt (fallback)
  */
 class ApiKeyMiddleware
 {
-    private const PREFIX       = 'wz_';
-    private const KEY_TTL      = 31536000; // 1 year in seconds
-    private const REVOKE_FILE  = __DIR__ . '/../writable/revoked_keys.txt';
+    private const PREFIX      = 'wz_';
+    private const KEY_TTL     = 31536000; // 1 year in seconds
+    private const REVOKE_FILE = __DIR__ . '/../writable/revoked_keys.txt'; // legacy fallback
 
     public static function validate(): void
     {
@@ -86,16 +88,33 @@ class ApiKeyMiddleware
 
     private static function isRevoked(string $key): bool
     {
+        $hash = hash('sha256', $key);
+
+        $pdo = Connection::get();
+        if ($pdo !== null) {
+            $stmt = $pdo->prepare(
+                'SELECT 1 FROM api_keys WHERE key_hash = ? AND revoked_at IS NOT NULL LIMIT 1'
+            );
+            $stmt->execute([$hash]);
+            return (bool) $stmt->fetchColumn();
+        }
+
+        // Fallback: file stores sha256 hashes (written by AdminController when DB unavailable)
         if (!file_exists(self::REVOKE_FILE)) return false;
         $list = file(self::REVOKE_FILE, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-        return in_array($key, $list, true);
+        return in_array($hash, $list, true);
     }
 
     private static function secret(): string
     {
-        return $_ENV['WIZDAM_SHARED_SECRET']
-            ?? getenv('WIZDAM_SHARED_SECRET')
-            ?: 'default-insecure-change-this-in-env';
+        $secret = $_ENV['WIZDAM_SHARED_SECRET'] ?? getenv('WIZDAM_SHARED_SECRET') ?: null;
+        if (!$secret) {
+            http_response_code(500);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['status' => 'error', 'code' => 500, 'message' => 'Server misconfiguration.']);
+            exit;
+        }
+        return $secret;
     }
 
     private static function reject(string $message): never
@@ -106,7 +125,6 @@ class ApiKeyMiddleware
             'status'  => 'error',
             'code'    => 401,
             'message' => $message,
-            'info'    => 'Dapatkan API key di Wizdam Sikola → Profil → API Keys',
         ]);
         exit;
     }

@@ -8,6 +8,7 @@ $baseDir = dirname($vendorDir);
 return array(
     'Composer\\InstalledVersions' => $vendorDir . '/composer/InstalledVersions.php',
     'Sangia\\Api\\Config\\Config' => $baseDir . '/src/Config/Config.php',
+    'Sangia\\Database\\Connection' => $baseDir . '/src/Database/Connection.php',
     'Sangia\\Api\\Controllers\\AdminController' => $baseDir . '/src/Controllers/AdminController.php',
     'Sangia\\Api\\Controllers\\BaseController' => $baseDir . '/src/Controllers/BaseController.php',
     'Sangia\\Api\\Controllers\\CitationController' => $baseDir . '/src/Controllers/CitationController.php',
