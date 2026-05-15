@@ -98,23 +98,37 @@ class OrcidModule
         $kws    = $raw['keywords']['keyword'] ?? [];
         $addrs  = $raw['addresses']['address'] ?? [];
 
+        $extIdList      = is_array($extIds) ? $extIds : [$extIds];
+        $scopusAuthorId = null;
+        $researcherId   = null; // ResearcherID / Web of Science ID
+
+        foreach ($extIdList as $id) {
+            $type = strtolower(str_replace([' ', '_'], '-', $id['external-id-type'] ?? ''));
+            $val  = $id['external-id-value'] ?? null;
+            if ($val === null) continue;
+            if ($type === 'scopus-author-id')  $scopusAuthorId = $val;
+            if ($type === 'rid' || $type === 'researcher-id') $researcherId = $val;
+        }
+
         return [
-            'name'         => trim(($name['given-names']['value'] ?? '') . ' ' . ($name['family-name']['value'] ?? '')),
-            'given_names'  => $name['given-names']['value'] ?? '',
-            'family_name'  => $name['family-name']['value'] ?? '',
-            'credit_name'  => $name['credit-name']['value'] ?? null,
-            'bio'          => $bio['content'] ?? null,
-            'emails'       => array_map(fn($e) => $e['email'] ?? '', $emails),
-            'keywords'     => array_map(fn($k) => $k['content'] ?? '', $kws),
-            'external_ids' => array_map(fn($id) => [
+            'name'            => trim(($name['given-names']['value'] ?? '') . ' ' . ($name['family-name']['value'] ?? '')),
+            'given_names'     => $name['given-names']['value'] ?? '',
+            'family_name'     => $name['family-name']['value'] ?? '',
+            'credit_name'     => $name['credit-name']['value'] ?? null,
+            'bio'             => $bio['content'] ?? null,
+            'emails'          => array_map(fn($e) => $e['email'] ?? '', $emails),
+            'keywords'        => array_map(fn($k) => $k['content'] ?? '', $kws),
+            'scopus_author_id' => $scopusAuthorId,
+            'researcher_id'   => $researcherId,
+            'external_ids'    => array_map(fn($id) => [
                 'type'  => $id['external-id-type'] ?? '',
                 'value' => $id['external-id-value'] ?? '',
-            ], is_array($extIds) ? $extIds : [$extIds]),
-            'urls'         => array_map(fn($u) => [
+            ], $extIdList),
+            'urls'            => array_map(fn($u) => [
                 'name' => $u['url-name'] ?? '',
                 'url'  => $u['url']['value'] ?? '',
             ], is_array($urls) ? $urls : []),
-            'country'      => $addrs[0]['country']['value'] ?? null,
+            'country'         => $addrs[0]['country']['value'] ?? null,
         ];
     }
 
