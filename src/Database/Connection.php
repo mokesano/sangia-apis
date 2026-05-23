@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace Sangia\Database;
+namespace Sangia\Api\Database;
 
 use PDO;
 use PDOException;
