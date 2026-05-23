@@ -1,9 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://api.sangia.org/v1/schema/wizdam-apis.schema.json",
-  "title": "Wizdam APIs Response Contract",
+  "$id": "https://api.sangia.org/v1/schema/sangia-apis.schema.json",
+  "title": "Sangia APIs Response Contract",
   "version": "1.0.0",
-  "description": "Shared JSON Schema antara wizdam-apis, wizdam-sikola, dan sdgs-mapper. Perubahan di sini harus diikuti oleh semua consumer.",
+  "description": "Shared JSON Schema antara sangia-apis, sangia-sikola, dan sdgs-mapper. Perubahan di sini harus diikuti oleh semua consumer.",
 
   "definitions": {
 
@@ -63,10 +63,10 @@
             }
           }
         },
-        "wizdam_impact_score": {
+        "sangia_impact_score": {
           "type": "number",
           "minimum": 0,
-          "description": "Skor khusus Wizdam, berbeda dari impact_score standar"
+          "description": "Skor khusus Sangia, berbeda dari impact_score standar"
         }
       }
     },

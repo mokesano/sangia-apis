@@ -6,8 +6,8 @@ namespace Sangia\Core\Modules\Journal;
 /**
  * Journal Module — fetches journal metrics from Scopus.
  *
- * No result caching here. Wizdam Sikola owns all persistence:
- *   response includes 'raw_data' so Wizdam Sikola can save results to its DB.
+ * No result caching here. Sangia Sikola owns all persistence:
+ *   response includes 'raw_data' so Sangia Sikola can save results to its DB.
  */
 class JournalModule
 {
@@ -44,7 +44,7 @@ class JournalModule
             $data,
             [
                 'cache_info' => ['from_cache' => false],
-                // Wizdam Sikola should save this to its journal_profiles_cache table
+                // Sangia Sikola should save this to its journal_profiles_cache table
                 'raw_data'   => [
                     'issn'       => $issnFormatted,
                     'metrics'    => $data,

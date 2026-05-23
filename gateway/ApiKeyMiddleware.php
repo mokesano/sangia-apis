@@ -11,12 +11,12 @@ use Sangia\Database\Connection;
  * Key format:
  *   wz_{user_id}_{issued_ts}_{hmac16}
  *
- * Any ecosystem app (wizdam-sikola, sdg-mapper, sdgs-analytics, sdg-mono) that
- * holds WIZDAM_SHARED_SECRET can call generateKey() to mint a valid key.
- * wizdam-apis validates by recomputing the HMAC — it does not care which app
+ * Any ecosystem app (sangia-sikola, sdg-mapper, sdgs-analytics, sdg-mono) that
+ * holds SANGIA_SHARED_SECRET can call generateKey() to mint a valid key.
+ * sangia-apis validates by recomputing the HMAC — it does not care which app
  * generated the key, only that the HMAC matches the shared secret.
  *
- * Shared secret: WIZDAM_SHARED_SECRET must be identical in ALL ecosystem .env files.
+ * Shared secret: SANGIA_SHARED_SECRET must be identical in ALL ecosystem .env files.
  * Revocation   : sha256(key) stored in api_keys table (DB), or writable/revoked_keys.txt (fallback)
  */
 class ApiKeyMiddleware
@@ -113,7 +113,7 @@ class ApiKeyMiddleware
 
     private static function secret(): string
     {
-        $secret = $_ENV['WIZDAM_SHARED_SECRET'] ?? getenv('WIZDAM_SHARED_SECRET') ?: null;
+        $secret = $_ENV['SANGIA_SHARED_SECRET'] ?? getenv('SANGIA_SHARED_SECRET') ?: null;
         if (!$secret) {
             http_response_code(500);
             header('Content-Type: application/json; charset=utf-8');
@@ -139,14 +139,14 @@ class ApiKeyMiddleware
 
     /**
      * Generates a signed API key for a given user_id.
-     * Any app that holds WIZDAM_SHARED_SECRET can call this to mint a valid key.
+     * Any app that holds SANGIA_SHARED_SECRET can call this to mint a valid key.
      * Equivalent formula for non-PHP apps:
      *   prefix = "wz_"
-     *   hmac16 = HMAC-SHA256(userId + ":" + timestamp, WIZDAM_SHARED_SECRET)[0..15]
+     *   hmac16 = HMAC-SHA256(userId + ":" + timestamp, SANGIA_SHARED_SECRET)[0..15]
      *   key    = "wz_" + userId + "_" + timestamp + "_" + hmac16
      *
      * @param string $userId   User identifier (e.g. "42" or "user@email.com")
-     * @param string $secret   The WIZDAM_SHARED_SECRET (identical across all ecosystem apps)
+     * @param string $secret   The SANGIA_SHARED_SECRET (identical across all ecosystem apps)
      * @return string          API key string to give to the user
      */
     public static function generateKey(string $userId, string $secret): string

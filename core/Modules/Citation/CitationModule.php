@@ -19,8 +19,8 @@ use Sangia\Core\Shared\ApiClients\PubMedClient;
  *   4. PubMed                 — biomedical focus, PMC cited-by
  *   5. Crossref               — citation count only (no citing-paper list)
  *
- * No result caching here. Wizdam Sikola owns all persistence:
- *   response includes 'raw_data' so Wizdam Sikola can cache results in its DB.
+ * No result caching here. Sangia Sikola owns all persistence:
+ *   response includes 'raw_data' so Sangia Sikola can cache results in its DB.
  */
 class CitationModule
 {

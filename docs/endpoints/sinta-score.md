@@ -73,7 +73,7 @@ For Indonesian institutions, SINTA grade is a mandatory compliance metric for re
 
 ---
 
-## Usage in Wizdam Sikola
+## Usage in Sangia Sikola
 
 ### 1. Journal Profile — Combined Metrics
 

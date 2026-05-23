@@ -1,16 +1,16 @@
-# Wizdam Ecosystem — Unified Database & API Architecture
+# Sangia Ecosystem — Unified Database & API Architecture
 
-Panduan unified database dan API untuk keempat repository yang terintegrasi dalam ekosistem Wizdam.
+Panduan unified database dan API untuk keempat repository yang terintegrasi dalam ekosistem Sangia Editorial Workflow.
 
 | Repository | Domain | Fungsi | Tech Stack |
 |---|---|---|---|
 | `sdgs-mapper` | sangia.org | Research knowledge base + SDG mapping UI | React + PHP backend |
-| `wizdam-apis` | api.sangia.org | Stateless analysis API (multi-source citations, impact scoring, trends, recommendations) | PHP REST |
+| `sangia-apis` | api.sangia.org | Stateless analysis API (multi-source citations, impact scoring, trends, recommendations) | PHP REST |
 | `SDGs-analytics` | sangia.org/analytics | Analytics dashboard & reporting | React / Chart library |
-| `wizdam-sikola` | stipwunaraha.ac.id | Academic profile platform (OJS-based) | OJS + PHP |
+| `sangia-sikola` | stipwunaraha.ac.id | Academic profile platform (OJS-based) | OJS + PHP |
 | `sdg-mono` | Legacy monolith | Consolidated legacy system | PHP/Mixed |
 
-**Koneksi data center**: Semua aplikasi menggunakan **satu database terpusat** `wizdam_ecosystem` dan **satu API layer** `wizdam-apis` untuk analisis data.
+**Koneksi data center**: Semua aplikasi menggunakan **satu database terpusat** `sangia_ecosystem` dan **satu API layer** `sangia-apis` untuk analisis data.
 
 ---
 
@@ -24,7 +24,7 @@ Panduan unified database dan API untuk keempat repository yang terintegrasi dala
 │  (researcher mapping) │  (dashboard)                 │
 │  React + Material-UI  │  React + Chart.js            │
 │                       │                              │
-│  wizdam-sikola        │  sdg-mono                    │
+│  sangia-sikola        │  sdg-mono                    │
 │  (OJS web UI)         │  (legacy monolith)           │
 │  OJS core            │  PHP/Mixed                    │
 └─────────┬──────────────┬────────────────────────────┘
@@ -32,7 +32,7 @@ Panduan unified database dan API untuk keempat repository yang terintegrasi dala
           └──────────┬───┘
                      ↓
         ┌────────────────────────────┐
-        │   wizdam-apis REST Layer   │
+        │   sangia-apis REST Layer   │
         │   (Stateless Analysis)     │
         │                            │
         │  • Citation API (4 sources)│
@@ -44,7 +44,7 @@ Panduan unified database dan API untuk keempat repository yang terintegrasi dala
         └────────────┬───────────────┘
                      ↓
         ┌────────────────────────────┐
-        │  wizdam_ecosystem DB       │
+        │  sangia_ecosystem DB       │
         │  (Shared central DB)       │
         │                            │
         │  10 tables (unified)       │
@@ -63,23 +63,23 @@ Panduan unified database dan API untuk keempat repository yang terintegrasi dala
 
 ## Data Flow & Responsibility
 
-### wizdam-apis (Stateless Analysis Engine)
+### sangia-apis (Stateless Analysis Engine)
 
 ```
 Frontend (React/OJS) 
     ↓ HTTP POST/GET (with API Key)
-wizdam-apis (API)
+sangia-apis (API)
     ↓ fetches from external APIs (if not supplied)
     OR uses supplied data from database
 External APIs (ORCID, Scopus, Crossref, OpenAlex, SemanticScholar, PubMed)
-wizdam_ecosystem DB (reads: api_keys, ecosystem_cache, publications for supplied_works)
+sangia_ecosystem DB (reads: api_keys, ecosystem_cache, publications for supplied_works)
     ↓ returns analysis result + raw_data
 Frontend (stores in DB via own endpoint)
     ↓
-wizdam_ecosystem DB (persistence: each app owns its writes)
+sangia_ecosystem DB (persistence: each app owns its writes)
 ```
 
-**Key principle**: wizdam-apis adalah **read-only untuk DB knowledge layer** (hanya baca publications, researchers jika needed). Untuk api_keys, wizdam-apis bisa UPDATE is_active untuk revokasi. Semua **write operasi lainnya** dilakukan oleh masing-masing aplikasi sendiri.
+**Key principle**: sangia-apis adalah **read-only untuk DB knowledge layer** (hanya baca publications, researchers jika needed). Untuk api_keys, sangia-apis bisa UPDATE is_active untuk revokasi. Semua **write operasi lainnya** dilakukan oleh masing-masing aplikasi sendiri.
 
 ---
 
@@ -89,12 +89,12 @@ wizdam_ecosystem DB (persistence: each app owns its writes)
 
 ```bash
 mysql -u root -p <<'SQL'
-CREATE DATABASE IF NOT EXISTS wizdam_ecosystem
+CREATE DATABASE IF NOT EXISTS sangia_ecosystem
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- Main application user (full access)
-CREATE USER IF NOT EXISTS 'wizdam_app'@'localhost' IDENTIFIED BY 'GANTI_PASSWORD_INI';
-GRANT ALL PRIVILEGES ON wizdam_ecosystem.* TO 'wizdam_app'@'localhost';
+CREATE USER IF NOT EXISTS 'sangia_app'@'localhost' IDENTIFIED BY 'GANTI_PASSWORD_INI';
+GRANT ALL PRIVILEGES ON sangia_ecosystem.* TO 'sangia_app'@'localhost';
 
 -- Optional: per-app users untuk least-privilege (lihat bagian "Hak Akses")
 FLUSH PRIVILEGES;
@@ -105,7 +105,7 @@ SQL
 
 ```bash
 # Dari sdgs-mapper (canonical schema owner):
-mysql -u root -p wizdam_ecosystem < db/schema.sql
+mysql -u root -p sangia_ecosystem < db/schema.sql
 ```
 
 ---
@@ -119,17 +119,17 @@ Setiap repository memiliki `.env` dengan kredensial yang sama:
 DB_DRIVER=mysql
 DB_HOST=localhost
 DB_PORT=3306
-DB_DATABASE=wizdam_ecosystem
-DB_USERNAME=wizdam_app
+DB_DATABASE=sangia_ecosystem
+DB_USERNAME=sangia_app
 DB_PASSWORD=GANTI_PASSWORD_INI
 DB_CHARSET=utf8mb4
 
-# API URLs (untuk frontend/backend apps yang call wizdam-apis)
-WIZDAM_API_URL=https://api.sangia.org
-WIZDAM_API_KEY=<generated-per-client>
+# API URLs (untuk frontend/backend apps yang call sangia-apis)
+SANGIA_API_URL=https://api.sangia.org
+SANGIA_API_KEY=<generated-per-client>
 
-# wizdam-apis server config (hanya di wizdam-apis)
-WIZDAM_SHARED_SECRET=<generate-with-openssl-rand-hex-32>
+# sangia-apis server config (hanya di sangia-apis)
+SANGIA_SHARED_SECRET=<generate-with-openssl-rand-hex-32>
 SEMANTIC_SCHOLAR_API_KEY=<dari-semanticscholar.org/product/api>
 PUBMED_API_KEY=<dari-ncbi.nlm.nih.gov/account>
 OPENALEX_MAILTO=api@sangia.org
@@ -168,24 +168,24 @@ RATE_LIMIT_WINDOW=60
 
 | Tabel | Ditulis oleh | Dibaca oleh | Keterangan |
 |---|---|---|---|
-| `api_keys` | sikola (via wizdam-apis) | apis | API key hashes, revocation status |
+| `api_keys` | sikola (via sangia-apis) | apis | API key hashes, revocation status |
 | `api_rate_limits` | apis | apis | Rate limit counters (optional) |
 | `jobs` | semua | semua | Background job queue (future) |
 
 ---
 
-## Cara Setiap Aplikasi Menggunakan wizdam-apis
+## Cara Setiap Aplikasi Menggunakan sangia-apis
 
 ### 1️⃣ sdgs-mapper (React + PHP Backend)
 
-#### React Frontend → wizdam-apis
+#### React Frontend → sangia-apis
 
 ```javascript
 // React component (src/components/ResearcherProfile.jsx)
 import { useQuery } from '@tanstack/react-query';
 
 export function ResearcherProfile({ orcid }) {
-  // Call wizdam-apis for ORCID profile
+  // Call sangia-apis for ORCID profile
   const { data: profile } = useQuery({
     queryKey: ['orcid-profile', orcid],
     queryFn: async () => {
@@ -199,7 +199,7 @@ export function ResearcherProfile({ orcid }) {
     }
   });
 
-  // Call wizdam-apis for impact score
+  // Call sangia-apis for impact score
   const { data: impact } = useQuery({
     queryKey: ['impact-score', orcid],
     queryFn: async () => {
@@ -215,7 +215,7 @@ export function ResearcherProfile({ orcid }) {
     }
   });
 
-  // Call wizdam-apis for citation data
+  // Call sangia-apis for citation data
   const { data: citations } = useQuery({
     queryKey: ['citations', doi],
     queryFn: async () => {
@@ -237,15 +237,15 @@ export function ResearcherProfile({ orcid }) {
 }
 ```
 
-#### PHP Backend (sdgs-mapper) → wizdam_ecosystem DB (Persist hasil)
+#### PHP Backend (sdgs-mapper) → sangia_ecosystem DB (Persist hasil)
 
 ```php
 // sdgs-mapper/app/Http/Controllers/ResearcherController.php
 public function upsertFromOrcid(string $orcid) {
-  // Step 1: Call wizdam-apis untuk fetch fresh data
+  // Step 1: Call sangia-apis untuk fetch fresh data
   $profile = Http::withHeaders([
-    'X-API-Key' => config('services.wizdam_api.key')
-  ])->get(config('services.wizdam_api.url') . "/api/v1/orcid/profile?orcid=$orcid")
+    'X-API-Key' => config('services.sangia_api.key')
+  ])->get(config('services.sangia_api.url') . "/api/v1/orcid/profile?orcid=$orcid")
     ->json();
 
   // Step 2: Extract Scopus Author ID dari ORCID profile
@@ -265,14 +265,14 @@ public function upsertFromOrcid(string $orcid) {
 
 ---
 
-### 2️⃣ wizdam-sikola (OJS Platform) → wizdam-apis
+### 2️⃣ sangia-sikola (Platform SDGs Analytics) → sangia-apis
 
 ```php
-// wizdam-sikola/app/Services/ImpactService.php
+// sangia-sikola/app/Services/ImpactService.php
 public function calculateResearcherImpact(User $user): array {
   $response = Http::withHeaders([
-    'X-API-Key' => config('services.wizdam_api.service_key')
-  ])->post(config('services.wizdam_api.url') . '/api/v1/impact/calculate', [
+    'X-API-Key' => config('services.sangia_api.service_key')
+  ])->post(config('services.sangia_api.url') . '/api/v1/impact/calculate', [
     'orcid' => $user->orcid_id,
     'social' => [
       'media_mentions' => $user->media_mentions ?? 0,
@@ -302,7 +302,7 @@ public function calculateResearcherImpact(User $user): array {
 
 ---
 
-### 3️⃣ SDGs-analytics (React Dashboard) → wizdam-apis (read-only)
+### 3️⃣ SDGs-analytics (React Dashboard) → sangia-apis (read-only)
 
 ```javascript
 // SDGs-analytics/src/pages/Dashboard.jsx
@@ -342,7 +342,7 @@ export function TrendDashboard() {
 
 ---
 
-### 4️⃣ sdg-mono (Legacy) → wizdam-apis
+### 4️⃣ sdg-mono (Legacy) → sangia-apis
 
 ```php
 // sdg-mono/app/api/researcher.php
@@ -350,7 +350,7 @@ $client = new GuzzleHttp\Client();
 $response = $client->post(
   'https://api.sangia.org/api/v1/impact/calculate',
   [
-    'headers' => ['X-API-Key' => getenv('WIZDAM_API_KEY')],
+    'headers' => ['X-API-Key' => getenv('SANGIA_API_KEY')],
     'json' => ['orcid' => $_GET['orcid']]
   ]
 );
@@ -365,17 +365,17 @@ echo json_encode($impact);
 
 ### Prinsip: Satu Secret, Semua Aplikasi
 
-`WIZDAM_SHARED_SECRET` adalah **network signing credential** yang harus **identik** di semua `.env` ekosistem:
+`SANGIA_SHARED_SECRET` adalah **network signing credential** yang harus **identik** di semua `.env` ekosistem:
 
 ```
-wizdam-apis         ← validates HMAC
-wizdam-sikola       ← can generateKey()
+sangia-apis         ← validates HMAC
+sangia-sikola       ← can generateKey()
 sdg-mapper          ← can generateKey()
 sdgs-analytics      ← can generateKey()
 sdg-mono            ← can generateKey()
 ```
 
-wizdam-apis **tidak peduli** siapa yang membuat key — hanya memverifikasi HMAC cocok dengan secret yang sama.
+sangia-apis **tidak peduli** siapa yang membuat key — hanya memverifikasi HMAC cocok dengan secret yang sama.
 
 ### Formula Key (implementasi di semua bahasa)
 
@@ -386,14 +386,14 @@ key = "wz_" + userId + "_" + timestamp + "_" + HMAC-SHA256(userId+":"+timestamp,
 ### Generasi Key (dari aplikasi manapun)
 
 ```php
-// PHP — berlaku untuk wizdam-sikola, sdg-mapper, sdgs-analytics, sdg-mono
-$secret = env('WIZDAM_SHARED_SECRET'); // sama di semua app
+// PHP — berlaku untuk sangia-sikola, sdg-mapper, sdgs-analytics, sdg-mono
+$secret = env('SANGIA_SHARED_SECRET'); // sama di semua app
 $userId = (string) auth()->id();       // atau app-level ID
 $ts     = (string) time();
 $hmac16 = substr(hash_hmac('sha256', $userId . ':' . $ts, $secret), 0, 16);
 $key    = 'wz_' . $userId . '_' . $ts . '_' . $hmac16;
 
-// Simpan hash ke shared DB (wizdam_ecosystem.api_keys)
+// Simpan hash ke shared DB (sangia_ecosystem.api_keys)
 DB::table('api_keys')->insert([
   'key_hash'   => hash('sha256', $key),
   'user_id'    => $userId,
@@ -428,9 +428,9 @@ def generate_key(user_id: str, secret: str) -> str:
 ### Revokasi (dari aplikasi manapun)
 
 ```php
-// POST ke wizdam-apis /api/v1/admin/keys/revoke dengan service key
+// POST ke sangia-apis /api/v1/admin/keys/revoke dengan service key
 Http::withHeaders(['X-API-Key' => $serviceKey])
-    ->post(config('wizdam_api.url') . '/api/v1/admin/keys/revoke', ['key' => $keyToRevoke]);
+    ->post(config('sangia_api.url') . '/api/v1/admin/keys/revoke', ['key' => $keyToRevoke]);
 ```
 
 > **NOTE**: `permissions_json` column exists in schema but is NOT enforced by ApiKeyMiddleware.
@@ -444,7 +444,7 @@ Http::withHeaders(['X-API-Key' => $serviceKey])
 ```
 ┌─────────────────────────────────────────┐
 │  API Server (api.sangia.org:443)        │
-│  wizdam-apis (PHP/Apache)               │
+│  sangia-apis (PHP/Apache)               │
 │  • ORCID, Scopus, Crossref, OpenAlex    │
 │  • Authentication (HMAC + api_keys DB)  │
 │  • Rate limiting (DB or file)           │
@@ -455,9 +455,9 @@ Http::withHeaders(['X-API-Key' => $serviceKey])
 ↓                ↓                         ↓
 Web Server 1     Web Server 2      Shared MySQL
 (sangia.org)     (stipwunaraha)    (localhost:3306)
-                                   wizdam_ecosystem
-• sdgs-mapper    • wizdam-sikola    • institutions
-• analytics      • OJS              • researchers
+                                   sangia_ecosystem
+• sdgs-mapper    • sangia-sikola    • institutions
+• analytics      • Lumera           • researchers
 • sdg-mono       users              • publications
                                     • work_sdgs
                                     • journals
@@ -471,33 +471,33 @@ Web Server 1     Web Server 2      Shared MySQL
 ## Hak Akses per Aplikasi (Least Privilege)
 
 ```sql
--- wizdam-apis: API key management
-CREATE USER 'wizdam_apis'@'%' IDENTIFIED BY 'api_password';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.api_keys TO 'wizdam_apis'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.api_rate_limits TO 'wizdam_apis'@'%';
+-- sangia-apis: API key management
+CREATE USER 'sangia_apis'@'%' IDENTIFIED BY 'api_password';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.api_keys TO 'sangia_apis'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.api_rate_limits TO 'sangia_apis'@'%';
 
 -- sdgs-mapper: Knowledge base writers
-CREATE USER 'wizdam_mapper'@'%' IDENTIFIED BY 'mapper_password';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.researchers TO 'wizdam_mapper'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publications TO 'wizdam_mapper'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.work_sdgs TO 'wizdam_mapper'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.ecosystem_cache TO 'wizdam_mapper'@'%';
+CREATE USER 'sangia_mapper'@'%' IDENTIFIED BY 'mapper_password';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.researchers TO 'sangia_mapper'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publications TO 'sangia_mapper'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.work_sdgs TO 'sangia_mapper'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.ecosystem_cache TO 'sangia_mapper'@'%';
 
--- wizdam-sikola: Identity + knowledge base writer
-CREATE USER 'wizdam_sikola'@'%' IDENTIFIED BY 'sikola_password';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.institutions TO 'wizdam_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.researchers TO 'wizdam_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publications TO 'wizdam_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.publication_authors TO 'wizdam_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.analytics_snapshots TO 'wizdam_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON wizdam_ecosystem.ecosystem_cache TO 'wizdam_sikola'@'%';
+-- sangia-sikola: Identity + knowledge base writer
+CREATE USER 'sangia_sikola'@'%' IDENTIFIED BY 'sikola_password';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.institutions TO 'sangia_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.researchers TO 'sangia_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publications TO 'sangia_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publication_authors TO 'sangia_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.analytics_snapshots TO 'sangia_sikola'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.ecosystem_cache TO 'sangia_sikola'@'%';
 
 -- SDGs-analytics: Read-only
-CREATE USER 'wizdam_analytics'@'%' IDENTIFIED BY 'analytics_password';
-GRANT SELECT ON wizdam_ecosystem.researchers TO 'wizdam_analytics'@'%';
-GRANT SELECT ON wizdam_ecosystem.publications TO 'wizdam_analytics'@'%';
-GRANT SELECT ON wizdam_ecosystem.work_sdgs TO 'wizdam_analytics'@'%';
-GRANT SELECT ON wizdam_ecosystem.analytics_snapshots TO 'wizdam_analytics'@'%';
+CREATE USER 'sangia_analytics'@'%' IDENTIFIED BY 'analytics_password';
+GRANT SELECT ON sangia_ecosystem.researchers TO 'sangia_analytics'@'%';
+GRANT SELECT ON sangia_ecosystem.publications TO 'sangia_analytics'@'%';
+GRANT SELECT ON sangia_ecosystem.work_sdgs TO 'sangia_analytics'@'%';
+GRANT SELECT ON sangia_ecosystem.analytics_snapshots TO 'sangia_analytics'@'%';
 
 FLUSH PRIVILEGES;
 ```
@@ -508,30 +508,30 @@ FLUSH PRIVILEGES;
 
 ### ☐ sdgs-mapper
 - [ ] Setup DB credentials
-- [ ] React components call wizdam-apis (ORCID, citation, impact)
+- [ ] React components call sangia-apis (ORCID, citation, impact)
 - [ ] Persist results to `researchers`, `publications`, `work_sdgs`
 - [ ] Set API key in `.env`
 
-### ☐ wizdam-apis
+### ☐ sangia-apis
 - [ ] Setup DB credentials
 - [ ] Verify all clients: OpenCitations, SemanticScholar, OpenAlex, PubMed
 - [ ] Rate limiting (DB or file)
 - [ ] Deploy to `api.sangia.org`
 
-### ☐ wizdam-sikola
+### ☐ sangia-sikola
 - [ ] Setup DB credentials
-- [ ] Call wizdam-apis for impact, trends, ORCID profiles
+- [ ] Call sangia-apis for impact, trends, ORCID profiles
 - [ ] Persist researcher profiles, publications, institution data
 - [ ] Persist analysis results to `analytics_snapshots`
-- [ ] Use least-privilege user: `wizdam_sikola` (not `wizdam_app`)
+- [ ] Use least-privilege user: `sangia_sikola` (not `sangia_app`)
 
 ### ☐ SDGs-analytics
 - [ ] Setup DB credentials
-- [ ] React dashboard calls wizdam-apis
+- [ ] React dashboard calls sangia-apis
 - [ ] Read from `analytics_snapshots`
 
 ### ☐ sdg-mono
-- [ ] Update PHP scripts to call wizdam-apis
+- [ ] Update PHP scripts to call sangia-apis
 - [ ] Set API key in `.env`
 
 ---

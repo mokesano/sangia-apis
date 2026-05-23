@@ -1,11 +1,11 @@
--- wizdam-apis — Database Reference
--- Database: wizdam_ecosystem (shared across all Wizdam repositories)
+-- sangia-apis — Database Reference
+-- Database: sangia_ecosystem (shared across all Sangia repositories)
 -- Canonical schema definition: sdgs-mapper/UNIFIED_SCHEMA_GUIDE.md
 --
--- wizdam-apis is a stateless analysis engine. It does NOT own data.
--- All persistent storage is handled by wizdam-sikola and sdgs-mapper.
+-- sangia-apis is a stateless analysis engine. It does NOT own data.
+-- All persistent storage is handled by sangia-sikola and sdgs-mapper.
 --
--- ── Tables wizdam-apis reads from (defined in unified schema) ─────────────────
+-- ── Tables sangia-apis reads from (defined in unified schema) ─────────────────
 --
 --   api_keys          READ: is_active = 0 check for key revocation
 --                     WRITE: UPDATE is_active = 0 on POST /api/v1/admin/keys/revoke
@@ -13,7 +13,7 @@
 --   ecosystem_cache   OPTIONAL READ/WRITE: could replace file-based CacheService
 --                     for batch session state (partial accumulators)
 --
--- ── No tables are created by wizdam-apis ─────────────────────────────────────
+-- ── No tables are created by sangia-apis ─────────────────────────────────────
 --
 -- The file-based fallback (writable/revoked_keys.txt) holds sha256 hashes of
 -- revoked keys for offline deployments where DB is unreachable. This file is

@@ -1,4 +1,4 @@
-# Contributing to Wizdam APIs
+# Contributing to Sangia APIs
 
 First of all, thank you for contributing!
 

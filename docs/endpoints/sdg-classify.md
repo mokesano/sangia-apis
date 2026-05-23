@@ -85,7 +85,7 @@ The endpoint accepts three mutually exclusive input modes:
 | `weights.thresholds.min` | float | No | 0.20 | Minimum score to include an SDG |
 | `weights.thresholds.confidence` | float | No | 0.30 | Score for "confident" label |
 | `weights.thresholds.high` | float | No | 0.60 | Score for "high confidence" label |
-| `supplied_works` | array | No | `[]` | Pre-fetched works from Wizdam Sikola DB — skips ORCID cURL |
+| `supplied_works` | array | No | `[]` | Pre-fetched works from Sangia Sikola DB — skips ORCID cURL |
 
 ---
 
@@ -195,11 +195,11 @@ The endpoint accepts three mutually exclusive input modes:
 
 ---
 
-## Usage in Wizdam Sikola
+## Usage in Sangia Sikola
 
 ### 1. Single Article Classification (text mode)
 
-Use when a researcher submits a new article or when Wizdam Sikola needs to classify a known title+abstract from its DB.
+Use when a researcher submits a new article or when Sangia Sikola needs to classify a known title+abstract from its DB.
 
 ```php
 // SangiaApiClient.php
@@ -223,7 +223,7 @@ public function classifyResearcherProfile(string $orcid, string $version = 'v5')
 {
     $weights = WeightConfigService::getForSdg($version);
 
-    // Check if Wizdam Sikola already has works cached
+    // Check if Sangia Sikola already has works cached
     $cache   = AuthorProfileCache::find($orcid);
     $payload = [
         'orcid'   => $orcid,

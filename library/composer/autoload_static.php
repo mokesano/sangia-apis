@@ -63,7 +63,7 @@ class ComposerStaticInita95e92c848acbc724a61a79a300362b6
         'Sangia\\Core\\Modules\\Scopus\\ScopusModule' => __DIR__ . '/../..' . '/core/Modules/Scopus/ScopusModule.php',
         'Sangia\\Core\\Modules\\Sinta\\SintaModule' => __DIR__ . '/../..' . '/core/Modules/Sinta/SintaModule.php',
         'Sangia\\Core\\Modules\\Trend\\TrendAnalysisEngine' => __DIR__ . '/../..' . '/core/Modules/Trend/TrendAnalysisEngine.php',
-        'Sangia\\Core\\Modules\\WizdamScore\\WizdamScoreEngine' => __DIR__ . '/../..' . '/core/Modules/WizdamScore/WizdamScoreEngine.php',
+        'Sangia\\Core\\Modules\\SangiaScore\\SangiaScoreEngine' => __DIR__ . '/../..' . '/core/Modules/SangiaScore/SangiaScoreEngine.php',
         'Sangia\\Core\\Shared\\ApiClients\\CrossrefClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/CrossrefClient.php',
         'Sangia\\Core\\Shared\\ApiClients\\HttpClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/HttpClient.php',
         'Sangia\\Core\\Shared\\ApiClients\\OpenAlexClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/OpenAlexClient.php',

@@ -1,23 +1,23 @@
-# 🔌 Wizdam APIs — *SangiaWizdam API Engine*
+# 🔌 Sangia APIs — *Sangia API Engine*
 
 **Pure analysis engine untuk ekosistem Sangia Publishing. Menyediakan REST API stateless untuk klasifikasi SDG, metrik Scopus/ORCID/SINTA, analisis tren, dan rekomendasi kebijakan — tanpa menyimpan data apa pun.**
 
 ---
 
 <p align="center">
-  <a href="https://github.com/mokesano/wizdam-apis">
+  <a href="https://github.com/mokesano/sangia-apis">
     <img src="https://img.shields.io/badge/PHP-^8.1-777BB4?style=for-the-badge&logo=php&logoColor=white" alt="PHP Version">
   </a>
-  <a href="https://github.com/mokesano/wizdam-apis/blob/master/LICENSE">
+  <a href="https://github.com/mokesano/sangia-apis/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge" alt="License">
   </a>
-  <a href="https://github.com/mokesano/wizdam-apis/actions">
+  <a href="https://github.com/mokesano/sangia-apis/actions">
     <img src="https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github-actions&logoColor=white" alt="Build Status">
   </a>
-  <a href="https://github.com/mokesano/wizdam-apis/releases">
+  <a href="https://github.com/mokesano/sangia-apis/releases">
     <img src="https://img.shields.io/badge/release-v1.0.0--alpha-lightgrey?style=for-the-badge" alt="Release">
   </a>
-  <a href="https://github.com/mokesano/wizdam-apis/security/advisories">
+  <a href="https://github.com/mokesano/sangia-apis/security/advisories">
     <img src="https://img.shields.io/badge/security-policy-important?style=for-the-badge&logo=github" alt="Security Policy">
   </a>
 </p>
@@ -32,20 +32,20 @@
 
 ## 📖 Tentang
 
-**Wizdam APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Sangia Publishing**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Wizdam Sikola** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
+**Sangia APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Sangia Publishing**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Sangia Sikola** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
 
 > **Base URL**: `https://api.sangia.org`  
 > **Versi API**: `v1`  
-> **Dokumentasi Lengkap**: [docs/API.md](https://github.com/mokesano/wizdam-apis/blob/master/docs/API.md)
+> **Dokumentasi Lengkap**: [docs/API.md](https://github.com/mokesano/sangia-apis/blob/master/docs/API.md)
 
 ---
 
-## 🧠 Mengapa Wizdam APIs?
+## 🧠 Mengapa Sangia APIs?
 
 | Masalah | Solusi |
 | :--- | :--- |
 | Anda butuh klasifikasi SDG untuk ribuan artikel ilmiah. | POST `/api/v1/sdg/v5/classify` — klasifikasi multilevel dengan bobot dinamis. |
-| Anda ingin menghitung *impact score* jurnal secara otomatis. | POST `/api/v1/impact/calculate` — Wizdam Impact Score siap pakai. |
+| Anda ingin menghitung *impact score* jurnal secara otomatis. | POST `/api/v1/impact/calculate` — Sangia Impact Score siap pakai. |
 | Anda perlu rekomendasi kebijakan berbasis data riset. | POST `/api/v1/recommendation/policy` — analisis *evidence‑based*. |
 | Data peneliti dan publikasi sudah ada di database Anda. | Kirim sebagai `supplied_data` — engine tidak perlu cURL ke API eksternal. |
 | Keamanan API tanpa session server. | HMAC‑SHA256 stateless authentication dengan TTL 1 tahun. |
@@ -65,10 +65,10 @@
 ### Instalasi
 
 ```bash
-git clone https://github.com/mokesano/wizdam-apis.git
-cd wizdam-apis
+git clone https://github.com/mokesano/sangia-apis.git
+cd sangia-apis
 cp .env.example .env
-# ✏️ Edit .env — set WIZDAM_SHARED_SECRET, dsb.
+# ✏️ Edit .env — set SANGIA_SHARED_SECRET, dsb.
 composer install
 php -S localhost:8000 -t public/
 ```
@@ -104,12 +104,12 @@ curl -X POST https://api.sangia.org/api/v1/sdg/v5/classify \
 | `GET` | `/api/v1/citation/doi` | 🔒 API Key | Sitasi multi‑sumber |
 | `GET` | `/api/v1/journal/metrics` | 🔒 API Key | Metrik jurnal Scopus |
 | `GET` | `/api/v1/sinta/score` | 🔒 API Key | Skor jurnal SINTA |
-| `POST` | `/api/v1/impact/calculate` | 🔒 API Key | Wizdam Impact Score |
+| `POST` | `/api/v1/impact/calculate` | 🔒 API Key | Sangia Impact Score |
 | `POST` | `/api/v1/trend/analyze` | 🔒 API Key | Trend analysis |
 | `POST` | `/api/v1/recommendation/policy` | 🔒 API Key | Rekomendasi kebijakan |
 | `POST` | `/api/v1/admin/keys/revoke` | 🔒 API Key | Cabut API key |
 
-> 📘 Dokumentasi lengkap dengan contoh request/response: [docs/API.md](https://github.com/mokesano/wizdam-apis/blob/master/docs/API.md)
+> 📘 Dokumentasi lengkap dengan contoh request/response: [docs/API.md](https://github.com/mokesano/sangia-apis/blob/master/docs/API.md)
 
 ---
 
@@ -124,9 +124,9 @@ Contoh: wz_42_1719000000_a3f8e2c1d5b7
 
 | Parameter | Deskripsi |
 | :--- | :--- |
-| `user_id` | ID pengguna dari Wizdam Sikola |
+| `user_id` | ID pengguna dari Sangia Sikola |
 | `unix_timestamp` | Timestamp saat key dibuat |
-| `hmac16` | 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, WIZDAM_SHARED_SECRET)` |
+| `hmac16` | 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, SANGIA_SHARED_SECRET)` |
 | **TTL** | 1 tahun sejak `timestamp` |
 
 **Kirim key melalui:**
@@ -147,7 +147,7 @@ Contoh: wz_42_1719000000_a3f8e2c1d5b7
 | 👤 **ORCID** | `core/Modules/ORCID` | Profil peneliti ORCID |
 | 📄 **Citation** | `core/Modules/Citation` | Sitasi multi‑sumber (DOI‑based) |
 | 🏫 **Sinta** | `core/Modules/Sinta` | Skor jurnal SINTA Kemdikbud |
-| ⭐ **WizdamScore** | `core/Modules/WizdamScore` | Kalkulasi Wizdam Impact Score |
+| ⭐ **SangiaScore** | `core/Modules/SangiaScore` | Kalkulasi Sangia Impact Score |
 | 📈 **Trend** | `core/Modules/Trend` | Analisis tren riset |
 | 🎯 **Recommendation** | `core/Modules/Recommendation` | Rekomendasi kebijakan berbasis bukti |
 | 📰 **Journal** | `core/Modules/Journal` | Metrik jurnal |
@@ -156,7 +156,7 @@ Contoh: wz_42_1719000000_a3f8e2c1d5b7
 
 ## 🔄 Pola `supplied_data`
 
-Jika **Wizdam Sikola** sudah memiliki data di database, kirimkan dalam request body. Engine akan menggunakan data tersebut **tanpa melakukan HTTP request ke API eksternal**, sehingga lebih cepat dan hemat *rate limit*.
+Jika **Sangia Sikola** sudah memiliki data di database, kirimkan dalam request body. Engine akan menggunakan data tersebut **tanpa melakukan HTTP request ke API eksternal**, sehingga lebih cepat dan hemat *rate limit*.
 
 ```json
 {
@@ -183,10 +183,10 @@ Jika **Wizdam Sikola** sudah memiliki data di database, kirimkan dalam request b
 ## ⚙️ Konfigurasi `.env`
 
 ```env
-WIZDAM_SHARED_SECRET=your-secret-key-here
+SANGIA_SHARED_SECRET=your-secret-key-here
 DB_DRIVER=mysql
 DB_HOST=localhost
-DB_NAME=wizdam_apis
+DB_NAME=sangia_apis
 DB_USER=root
 DB_PASS=
 RATE_LIMIT_MAX=60
@@ -212,7 +212,7 @@ vendor/bin/phpstan analyse --level max core/ src/
 
 ## 🤝 Kontribusi
 
-Kami menyambut kontribusi! Lihat [CONTRIBUTING.md](https://github.com/mokesano/wizdam-apis/blob/master/CONTRIBUTING.md) untuk panduan lengkap.
+Kami menyambut kontribusi! Lihat [CONTRIBUTING.md](https://github.com/mokesano/sangia-apis/blob/master/CONTRIBUTING.md) untuk panduan lengkap.
 
 1. Fork repositori ini
 2. Buat branch baru (`git checkout -b fitur-baru`)
@@ -220,7 +220,7 @@ Kami menyambut kontribusi! Lihat [CONTRIBUTING.md](https://github.com/mokesano/w
 4. Push ke branch (`git push origin fitur-baru`)
 5. Buat Pull Request
 
-Proyek ini mengikuti [Contributor Covenant Code of Conduct](https://github.com/mokesano/wizdam-apis/blob/master/CODE_OF_CONDUCT.md).
+Proyek ini mengikuti [Contributor Covenant Code of Conduct](https://github.com/mokesano/sangia-apis/blob/master/CODE_OF_CONDUCT.md).
 
 ---
 
@@ -230,15 +230,15 @@ Proyek ini mengikuti [Contributor Covenant Code of Conduct](https://github.com/m
 
 - **Pelaporan**: [security@sangia.org](mailto:security@sangia.org)
 - **Respons**: Dalam 48 jam
-- **Advisori**: [GitHub Security Advisories](https://github.com/mokesano/wizdam-apis/security/advisories)
+- **Advisori**: [GitHub Security Advisories](https://github.com/mokesano/sangia-apis/security/advisories)
 
-Detail lengkap: [SECURITY.md](https://github.com/mokesano/wizdam-apis/blob/master/SECURITY.md)
+Detail lengkap: [SECURITY.md](https://github.com/mokesano/sangia-apis/blob/master/SECURITY.md)
 
 ---
 
 ## 📄 Lisensi
 
-**MIT License** © 2025–2026 Rochmady. Lihat [LICENSE](https://github.com/mokesano/wizdam-apis/blob/master/LICENSE) untuk teks lengkap.
+**MIT License** © 2025–2026 Rochmady. Lihat [LICENSE](https://github.com/mokesano/sangia-apis/blob/master/LICENSE) untuk teks lengkap.
 
 | Izin | Ketentuan |
 | :--- | :--- |
@@ -253,7 +253,7 @@ Detail lengkap: [SECURITY.md](https://github.com/mokesano/wizdam-apis/blob/maste
 | :--- | :--- |
 | **Lead Developer** | [Rochmady (mokesano)](https://github.com/mokesano) |
 | **Ekosistem** | [Sangia Publishing](https://github.com/sangiaorg) |
-| **Dokumentasi API** | [docs/API.md](https://github.com/mokesano/wizdam-apis/blob/master/docs/API.md) |
+| **Dokumentasi API** | [docs/API.md](https://github.com/mokesano/sangia-apis/blob/master/docs/API.md) |
 
 ---
 
@@ -261,11 +261,11 @@ Detail lengkap: [SECURITY.md](https://github.com/mokesano/wizdam-apis/blob/maste
   <br>
   <creator>Dibangun dengan ❤️ sebagai bagian dari ekosistem <strong>Sangia Publishing</strong></creator>
   <br><br>
-  <a href="https://github.com/mokesano/wizdam-apis/stargazers">
-    <img src="https://img.shields.io/github/stars/mokesano/wizdam-apis?style=social" alt="GitHub Stars">
+  <a href="https://github.com/mokesano/sangia-apis/stargazers">
+    <img src="https://img.shields.io/github/stars/mokesano/sangia-apis?style=social" alt="GitHub Stars">
   </a>
-  <a href="https://github.com/mokesano/wizdam-apis/network/members">
-    <img src="https://img.shields.io/github/forks/mokesano/wizdam-apis?style=social" alt="GitHub Forks">
+  <a href="https://github.com/mokesano/sangia-apis/network/members">
+    <img src="https://img.shields.io/github/forks/mokesano/sangia-apis?style=social" alt="GitHub Forks">
   </a>
   <br><br>
   <credit>© 2025–2026 Rochmady. Dilisensikan di bawah MIT License.</credit>

@@ -16,7 +16,7 @@ class SdgAnalyzer
     /**
      * Full version config: weights + thresholds.
      * Keys: keyword, similarity, substantive, causal, thresholds:{min,confidence,high}, max_sdgs
-     * Source: VersionConfig::get($version) merged with request-level overrides from Wizdam Sikola.
+     * Source: VersionConfig::get($version) merged with request-level overrides from Sangia Sikola.
      * Hardcoded values in SdgConfig are fallback only.
      */
     private array $config = [];
@@ -133,7 +133,7 @@ class SdgAnalyzer
 
     /**
      * Determine scoring weights.
-     * Priority: request override (from Wizdam Sikola admin) → version config → SdgConfig defaults.
+     * Priority: request override (from Sangia Sikola admin) → version config → SdgConfig defaults.
      */
     private function determineWeights(int $textLength): array
     {

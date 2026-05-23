@@ -38,7 +38,7 @@ return array(
     'Sangia\\Core\\Modules\\Scopus\\ScopusModule' => $baseDir . '/core/Modules/Scopus/ScopusModule.php',
     'Sangia\\Core\\Modules\\Sinta\\SintaModule' => $baseDir . '/core/Modules/Sinta/SintaModule.php',
     'Sangia\\Core\\Modules\\Trend\\TrendAnalysisEngine' => $baseDir . '/core/Modules/Trend/TrendAnalysisEngine.php',
-    'Sangia\\Core\\Modules\\WizdamScore\\WizdamScoreEngine' => $baseDir . '/core/Modules/WizdamScore/WizdamScoreEngine.php',
+    'Sangia\\Core\\Modules\\SangiaScore\\SangiaScoreEngine' => $baseDir . '/core/Modules/SangiaScore/SangiaScoreEngine.php',
     'Sangia\\Core\\Shared\\ApiClients\\CrossrefClient' => $baseDir . '/core/Shared/ApiClients/CrossrefClient.php',
     'Sangia\\Core\\Shared\\ApiClients\\HttpClient' => $baseDir . '/core/Shared/ApiClients/HttpClient.php',
     'Sangia\\Core\\Shared\\ApiClients\\OpenAlexClient' => $baseDir . '/core/Shared/ApiClients/OpenAlexClient.php',

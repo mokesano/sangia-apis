@@ -11,7 +11,7 @@ use Sangia\Core\Modules\SDG\Services\SdgAnalyzer;
 /**
  * SDG API Controller — handles DOI and ORCID classification requests.
  *
- * No result caching here. Wizdam Sikola owns all persistence.
+ * No result caching here. Sangia Sikola owns all persistence.
  * CacheService is only used for short-lived batch session state (partial accumulator).
  *
  * ORCID requests use the anti-timeout batch pattern:
@@ -41,7 +41,7 @@ class SdgApi
      * @param bool   $forceRefresh   Ignore supplied data and re-fetch from ORCID
      * @param int    $batchSize      Works processed per call
      * @param int    $offset         Starting index (0 on first call)
-     * @param array  $suppliedWorks  Works from Wizdam Sikola DB — skips ORCID cURL
+     * @param array  $suppliedWorks  Works from Sangia Sikola DB — skips ORCID cURL
      */
     public function handleOrcidRequest(
         string $orcid,
@@ -52,10 +52,10 @@ class SdgApi
     ): array {
         $orcid = trim($orcid);
 
-        // Use supplied works from Wizdam Sikola DB if provided (no ORCID fetch)
+        // Use supplied works from Sangia Sikola DB if provided (no ORCID fetch)
         if (!$forceRefresh && !empty($suppliedWorks)) {
             $works      = array_slice($suppliedWorks, 0, self::MAX_WORKS);
-            $dataSource = 'wizdam_sikola_db';
+            $dataSource = 'sangia_sikola_db';
         } else {
             // Fetch from ORCID API
             try {
@@ -194,7 +194,7 @@ class SdgApi
                 'sdg_summary' => $sdgSummary,
                 'works'       => $worksSummary,
             ],
-            // Wizdam Sikola should save works_fetched to its DB when data_source=orcid_api
+            // Sangia Sikola should save works_fetched to its DB when data_source=orcid_api
             'raw_data'    => $dataSource === 'orcid_api' ? [
                 'works'      => $works,
                 'fetched_at' => date('c'),
