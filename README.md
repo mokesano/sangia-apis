@@ -191,6 +191,7 @@ DB_USER=root
 DB_PASS=
 RATE_LIMIT_MAX=60
 RATE_LIMIT_WINDOW=60
+SANGIA_ADMIN_USER_IDS=service-api,superadmin
 ```
 
 ---
