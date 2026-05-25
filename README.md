@@ -206,6 +206,9 @@ vendor/bin/phpcs --standard=PSR12 core/ src/
 
 # Static analysis
 vendor/bin/phpstan analyse --level max core/ src/
+
+# Branding guard (legacy brand -> Sangia)
+composer run check-branding
 ```
 
 ---
