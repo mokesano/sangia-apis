@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------
-# WIZDAM APIS - .GITIGNORE CONFIGURATION
+# SANGIA APIS - .GITIGNORE CONFIGURATION
 # Optimized for Laravel/CodeIgniter Hybrid & Unit Testing
 # ---------------------------------------------------------------
 
@@ -8,7 +8,7 @@
 .env.*
 .env.*.local
 !.env.example
-WIZDAM_SHARED_SECRET=
+SANGIA_SHARED_SECRET=
 SEMANTIC_SCHOLAR_API_KEY=
 DIMENSION_API_KEY=
 
