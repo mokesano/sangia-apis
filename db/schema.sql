@@ -1,0 +1,45 @@
+-- sangia-apis — Database Reference
+-- Database: sangia_ecosystem (shared across all Sangia repositories)
+-- Canonical schema definition: sdgs-mapper/UNIFIED_SCHEMA_GUIDE.md
+--
+-- sangia-apis is a stateless analysis engine. It does NOT own data.
+-- All persistent storage is handled by sangia-sikola and sdgs-mapper.
+--
+-- ── Tables sangia-apis reads from (defined in unified schema) ─────────────────
+--
+--   api_keys          READ: is_active = 0 check for key revocation
+--                     WRITE: UPDATE is_active = 0 on POST /api/v1/admin/keys/revoke
+--
+--   ecosystem_cache   OPTIONAL READ/WRITE: could replace file-based CacheService
+--                     for batch session state (partial accumulators)
+--
+-- ── No tables are created by sangia-apis ─────────────────────────────────────
+--
+-- The file-based fallback (writable/revoked_keys.txt) holds sha256 hashes of
+-- revoked keys for offline deployments where DB is unreachable. This file is
+-- read and written by ApiKeyMiddleware and AdminController respectively.
+--
+-- ── Optional addition to unified schema ──────────────────────────────────────
+-- If DB-backed rate limiting is preferred over the file-based fallback,
+-- propose adding this table to sdgs-mapper/UNIFIED_SCHEMA_GUIDE.md:
+
+-- CREATE TABLE IF NOT EXISTS api_rate_limits (
+--     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+--     user_id      VARCHAR(100)      NOT NULL,
+--     window_start INT UNSIGNED      NOT NULL,   -- Unix timestamp of window start
+--     hit_count    SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+--     updated_at   TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP
+--                                    ON UPDATE CURRENT_TIMESTAMP,
+--     UNIQUE KEY uq_user_window (user_id, window_start),
+--     INDEX idx_window_start (window_start)
+-- ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+--
+-- PostgreSQL equivalent:
+-- CREATE TABLE IF NOT EXISTS api_rate_limits (
+--     id           BIGSERIAL PRIMARY KEY,
+--     user_id      VARCHAR(100) NOT NULL,
+--     window_start INT          NOT NULL,
+--     hit_count    SMALLINT     NOT NULL DEFAULT 1,
+--     updated_at   TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+--     UNIQUE (user_id, window_start)
+-- );

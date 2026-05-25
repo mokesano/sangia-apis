@@ -3,116 +3,246 @@ declare(strict_types=1);
 
 namespace Sangia\Core\Modules\SDG\Controllers;
 
-use Sangia\Core\Shared\Models\TaskModel;
 use Sangia\Core\Shared\ApiClients\OrcidClient;
 use Sangia\Core\Shared\ApiClients\CrossrefClient;
 use Sangia\Core\Shared\Services\CacheService;
 use Sangia\Core\Modules\SDG\Services\SdgAnalyzer;
-// (Pastikan Anda meng-use SdgDictionary, SdgClassifier, LevelV4Evaluator juga jika instansiasi manual)
 
+/**
+ * SDG API Controller — handles DOI and ORCID classification requests.
+ *
+ * No result caching here. Sangia Sikola owns all persistence.
+ * CacheService is only used for short-lived batch session state (partial accumulator).
+ *
+ * ORCID requests use the anti-timeout batch pattern:
+ *   offset=0  → process first BATCH_SIZE works → {status:"processing", next_offset:N}
+ *   offset=N  → continue until {status:"success", data:{...}}
+ */
 class SdgApi
 {
-    private TaskModel $taskModel;
-    private OrcidClient $orcidClient;
+    private const BATCH_SIZE = 20;
+    private const MAX_WORKS  = 50;
+
+    private OrcidClient    $orcidClient;
     private CrossrefClient $crossrefClient;
-    private CacheService $cache;
-    private SdgAnalyzer $analyzer;
+    private CacheService   $batchState; // batch session state only — NOT result cache
+    private SdgAnalyzer    $analyzer;
 
     public function __construct(SdgAnalyzer $analyzer)
     {
-        $this->taskModel = new TaskModel();
-        $this->orcidClient = new OrcidClient();
+        $this->orcidClient    = new OrcidClient();
         $this->crossrefClient = new CrossrefClient();
-        $this->cache = new CacheService('sdg'); // Set folder cache ke writable/cache/sdg/
-        $this->analyzer = $analyzer;
+        $this->batchState     = new CacheService('sdg');
+        $this->analyzer       = $analyzer;
     }
 
     /**
-     * Handler untuk ORCID (Menggunakan Sistem Antrean/Worker)
+     * @param string $orcid          ORCID iD
+     * @param bool   $forceRefresh   Ignore supplied data and re-fetch from ORCID
+     * @param int    $batchSize      Works processed per call
+     * @param int    $offset         Starting index (0 on first call)
+     * @param array  $suppliedWorks  Works from Sangia Sikola DB — skips ORCID cURL
      */
-    public function handleOrcidRequest(string $orcid, bool $forceRefresh = false): array
-    {
+    public function handleOrcidRequest(
+        string $orcid,
+        bool   $forceRefresh   = false,
+        int    $batchSize      = self::BATCH_SIZE,
+        int    $offset         = 0,
+        array  $suppliedWorks  = []
+    ): array {
         $orcid = trim($orcid);
-        
-        // 1. Cek Cache (Jika tidak force refresh)
-        if (!$forceRefresh) {
-            $cachedData = $this->cache->get('orcid', $orcid);
-            if ($cachedData !== false) {
+
+        // Use supplied works from Sangia Sikola DB if provided (no ORCID fetch)
+        if (!$forceRefresh && !empty($suppliedWorks)) {
+            $works      = array_slice($suppliedWorks, 0, self::MAX_WORKS);
+            $dataSource = 'sangia_sikola_db';
+        } else {
+            // Fetch from ORCID API
+            try {
+                $worksRaw = $this->orcidClient->getWorksData($orcid, self::MAX_WORKS);
+            } catch (\Throwable $e) {
+                return $this->error(502, 'ORCID API error: ' . $e->getMessage());
+            }
+
+            $works = [];
+            foreach ($worksRaw['group'] ?? [] as $group) {
+                $summary = $group['work-summary'][0] ?? [];
+                $title   = $summary['title']['title']['value'] ?? '';
+                if (empty($title)) continue;
+
+                $extIds = $summary['external-ids']['external-id'] ?? [];
+                $doi    = null;
+                foreach ((array) $extIds as $ext) {
+                    if (($ext['external-id-type'] ?? '') === 'doi') {
+                        $doi = $ext['external-id-value'] ?? null;
+                        break;
+                    }
+                }
+
+                $pubDate = $summary['publication-date'] ?? [];
+                $year    = (int) ($pubDate['year']['value'] ?? 0);
+
+                $works[] = [
+                    'title'            => $title,
+                    'doi'              => $doi,
+                    'publication_year' => $year ?: null,
+                ];
+            }
+
+            $works      = array_slice($works, 0, self::MAX_WORKS);
+            $dataSource = 'orcid_api';
+        }
+
+        $totalWorks = count($works);
+        $accumKey   = 'orcid_accum_' . md5($orcid);
+
+        // Load or initialise batch accumulator
+        if ($offset === 0) {
+            $accum = [];
+        } else {
+            $stored = $this->batchState->get('partial', $accumKey);
+            if ($stored === false) {
                 return [
-                    'status' => 'success',
-                    'message' => 'Data diambil dari cache.',
-                    'from_cache' => true,
-                    'data' => $cachedData
+                    'status'  => 'error',
+                    'code'    => 410,
+                    'message' => 'Batch session expired. Restart with offset=0.',
+                ];
+            }
+            $accum = $stored;
+        }
+
+        // ── Process batch ─────────────────────────────────────────────────────
+        foreach (array_slice($works, $offset, $batchSize) as $work) {
+            $abstract = $work['abstract'] ?? '';
+
+            if (empty($abstract) && !empty($work['doi'])) {
+                try {
+                    $crData   = $this->crossrefClient->getWorkData($work['doi']);
+                    $abstract = strip_tags($crData['message']['abstract'] ?? '');
+                } catch (\Throwable) {
+                    // title-only analysis
+                }
+            }
+
+            try {
+                $analysis = $this->analyzer->analyzeWork($work['title'] ?? '', $abstract);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            $accum[] = [
+                'title'            => substr($work['title'] ?? '', 0, 100),
+                'doi'              => $work['doi'] ?? null,
+                'publication_year' => $work['publication_year'] ?? null,
+                'sdgs'             => array_keys($analysis['sdg_confidence'] ?? []),
+                'confidence'       => $analysis['sdg_confidence'] ?? [],
+            ];
+        }
+
+        $this->batchState->set('partial', $accumKey, $accum);
+
+        $processed = min($offset + $batchSize, $totalWorks);
+        $isDone    = ($processed >= $totalWorks) || ($processed === $offset);
+
+        // ── More batches remain ───────────────────────────────────────────────
+        if (!$isDone) {
+            return [
+                'status'      => 'processing',
+                'orcid'       => $orcid,
+                'progress'    => [
+                    'processed'   => $processed,
+                    'total_works' => $totalWorks,
+                    'percent'     => (int) round($processed / max(1, $totalWorks) * 100),
+                ],
+                'next_offset' => $processed,
+            ];
+        }
+
+        // ── All works done — aggregate ────────────────────────────────────────
+        $allSdgs      = [];
+        $worksSummary = [];
+
+        foreach ($accum as $item) {
+            foreach ($item['confidence'] ?? [] as $sdgCode => $score) {
+                $allSdgs[$sdgCode][] = (float) $score;
+            }
+            if (!empty($item['sdgs'])) {
+                $worksSummary[] = [
+                    'title'            => $item['title'],
+                    'doi'              => $item['doi'],
+                    'publication_year' => $item['publication_year'],
+                    'sdgs'             => $item['sdgs'],
                 ];
             }
         }
 
-        // 2. Jika tidak ada di cache, masukkan ke antrean (Logika sama seperti sebelumnya)
-        // ... (Ambil Profil dari OrcidClient) ...
-        // ... (Buat $taskId via TaskModel) ...
-        
-        // Contoh return jika masuk antrean (dipersingkat untuk fokus)
+        $sdgSummary = [];
+        foreach ($allSdgs as $sdgCode => $scores) {
+            $sdgSummary[$sdgCode] = [
+                'average_confidence' => round(array_sum($scores) / count($scores), 3),
+                'work_count'         => count($scores),
+            ];
+        }
+        arsort($sdgSummary);
+
         return [
-            'status' => 'queued',
-            'task_id' => 'WD-XYZ123', // Hasil dari $this->taskModel->createTask(...)
-            'message' => 'Masuk antrean. Lakukan polling ke worker.'
+            'status'      => 'success',
+            'orcid'       => $orcid,
+            'total_works' => $totalWorks,
+            'data_source' => $dataSource,
+            'data'        => [
+                'sdg_summary' => $sdgSummary,
+                'works'       => $worksSummary,
+            ],
+            // Sangia Sikola should save works_fetched to its DB when data_source=orcid_api
+            'raw_data'    => $dataSource === 'orcid_api' ? [
+                'works'      => $works,
+                'fetched_at' => date('c'),
+            ] : null,
+            'api_version' => 'v5.1.8-batch',
         ];
     }
 
-    /**
-     * Handler untuk DOI Tunggal (Diproses Langsung, Bebas Timeout karena cuma 1)
-     */
+    // ── DOI — single work, synchronous ───────────────────────────────────────
+
     public function handleDoiRequest(string $doi, bool $forceRefresh = false): array
     {
         $doi = trim($doi);
         if (empty($doi)) {
-            return $this->errorResponse(400, 'DOI tidak boleh kosong');
-        }
-
-        // 1. Cek Cache
-        if (!$forceRefresh) {
-            $cachedData = $this->cache->get('article', $doi);
-            if ($cachedData !== false) {
-                $cachedData['cache_info'] = ['from_cache' => true];
-                return $cachedData;
-            }
+            return $this->error(400, 'doi is required');
         }
 
         try {
-            // 2. Ambil Metadata dari Crossref
             $crossrefData = $this->crossrefClient->getWorkData($doi);
             if (empty($crossrefData)) {
-                return $this->errorResponse(404, 'Data DOI tidak ditemukan di Crossref.');
+                return $this->error(404, 'DOI not found in Crossref');
             }
 
-            $title = $crossrefData['message']['title'][0] ?? '';
-            $abstract = $crossrefData['message']['abstract'] ?? $this->crossrefClient->getAlternativeAbstract($doi);
+            $title    = $crossrefData['message']['title'][0] ?? '';
+            $abstract = strip_tags($crossrefData['message']['abstract'] ?? '');
 
-            // 3. Analisis menggunakan SdgAnalyzer
-            $analysisResult = $this->analyzer->analyzeWork($title, $abstract);
+            if (empty($abstract)) {
+                $abstract = $this->crossrefClient->getAlternativeAbstract($doi);
+            }
 
-            // 4. Susun Hasil Akhir
-            $finalResult = [
-                'doi' => $doi,
-                'title' => $title,
-                'abstract' => strip_tags($abstract),
-                'sdg_analysis' => $analysisResult,
-                'api_version' => 'v5.1.8-Modular',
-                'status' => 'success'
+            $analysis = $this->analyzer->analyzeWork($title, $abstract);
+
+            return [
+                'status'       => 'success',
+                'doi'          => $doi,
+                'title'        => $title,
+                'abstract'     => $abstract,
+                'sdg_analysis' => $analysis,
+                'api_version'  => 'v5.1.8-batch',
+                'cache_info'   => ['from_cache' => false],
             ];
 
-            // 5. Simpan ke Cache (.json.gz)
-            $this->cache->set('article', $doi, $finalResult);
-
-            $finalResult['cache_info'] = ['from_cache' => false];
-            return $finalResult;
-
-        } catch (\Exception $e) {
-            return $this->errorResponse(500, 'Kesalahan internal: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            return $this->error(500, 'Kesalahan internal: ' . $e->getMessage());
         }
     }
 
-    private function errorResponse(int $code, string $message): array
+    private function error(int $code, string $message): array
     {
         http_response_code($code);
         return ['status' => 'error', 'code' => $code, 'message' => $message];
