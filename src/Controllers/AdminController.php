@@ -4,7 +4,8 @@ declare(strict_types=1);
 namespace Sangia\Api\Controllers;
 
 use Sangia\Api\Response;
-use Sangia\Database\Connection;
+use Sangia\Api\Database\Connection;
+use Sangia\Gateway\ApiKeyMiddleware;
 
 class AdminController extends BaseController
 {
@@ -12,6 +13,8 @@ class AdminController extends BaseController
 
     public function revokeKey(): void
     {
+        $this->assertAdminCaller();
+
         $body = $this->jsonBody();
         $key  = trim($body['key'] ?? '');
 
@@ -48,5 +51,22 @@ class AdminController extends BaseController
         }
 
         Response::json(['status' => 'success', 'message' => 'Key revoked']);
+    }
+
+    private function assertAdminCaller(): void
+    {
+        $callerUserId = ApiKeyMiddleware::getUserId();
+        $allowedUsers = array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) ($_ENV['SANGIA_ADMIN_USER_IDS'] ?? getenv('SANGIA_ADMIN_USER_IDS') ?: ''))
+        )));
+
+        if ($callerUserId === null || empty($allowedUsers) || !in_array($callerUserId, $allowedUsers, true)) {
+            Response::json([
+                'status'  => 'error',
+                'code'    => 403,
+                'message' => 'Forbidden. Admin credentials required.'
+            ], 403);
+        }
     }
 }

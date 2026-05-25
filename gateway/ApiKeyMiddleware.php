@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Sangia\Gateway;
 
-use Sangia\Database\Connection;
+use Sangia\Api\Database\Connection;
 
 /**
  * HMAC-signed API key middleware.

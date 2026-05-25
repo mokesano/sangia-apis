@@ -191,6 +191,7 @@ DB_USER=root
 DB_PASS=
 RATE_LIMIT_MAX=60
 RATE_LIMIT_WINDOW=60
+SANGIA_ADMIN_USER_IDS=service-api,superadmin
 ```
 
 ---
@@ -206,6 +207,9 @@ vendor/bin/phpcs --standard=PSR12 core/ src/
 
 # Static analysis
 vendor/bin/phpstan analyse --level max core/ src/
+
+# Branding guard (legacy brand -> Sangia)
+composer run check-branding
 ```
 
 ---
