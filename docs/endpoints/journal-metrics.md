@@ -6,7 +6,7 @@ Retrieve journal impact metrics from the Scopus Serial Title API (CiteScore, SJR
 **Path:** `/api/v1/journal/metrics`  
 **Auth:** `X-API-Key` required  
 **Timeout:** 30 seconds  
-**Requires:** `SCOPUS_API_KEY` environment variable on the wizdam-apis server
+**Requires:** `SCOPUS_API_KEY` environment variable on the sangia-apis server
 
 ---
 
@@ -86,7 +86,7 @@ Retrieve journal impact metrics from the Scopus Serial Title API (CiteScore, SJR
 
 ---
 
-## Usage in Wizdam Sikola
+## Usage in Sangia Sikola
 
 ### 1. Journal Profile Page
 

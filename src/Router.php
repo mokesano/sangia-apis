@@ -101,7 +101,7 @@ class Router
             return true;
         }
 
-        // Wizdam Impact Score (batched)
+        // Sangia Impact Score (batched)
         if ($method === 'POST' && $uri === '/api/v1/impact/calculate') {
             (new ImpactController())->calculate();
             return true;

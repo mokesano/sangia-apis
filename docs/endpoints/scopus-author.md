@@ -6,7 +6,7 @@ Fetch a researcher's author profile and recent publications from the Scopus API 
 **Path:** `/api/v1/scopus/author`  
 **Auth:** `X-API-Key` required  
 **Timeout:** 45 seconds  
-**Requires:** `SCOPUS_API_KEY` environment variable on the wizdam-apis server
+**Requires:** `SCOPUS_API_KEY` environment variable on the sangia-apis server
 
 ---
 
@@ -22,7 +22,7 @@ Fetch a researcher's author profile and recent publications from the Scopus API 
 
 ## Request Body (optional — supplied data)
 
-Send pre-fetched Scopus data from Wizdam Sikola DB to skip the Scopus cURL call:
+Send pre-fetched Scopus data from Sangia Sikola DB to skip the Scopus cURL call:
 
 ```json
 {
@@ -95,7 +95,7 @@ Send pre-fetched Scopus data from Wizdam Sikola DB to skip the Scopus cURL call:
 }
 ```
 
-### From Wizdam Sikola DB
+### From Sangia Sikola DB
 
 ```json
 {
@@ -103,7 +103,7 @@ Send pre-fetched Scopus data from Wizdam Sikola DB to skip the Scopus cURL call:
   "author_id":   "57200000000",
   "author":      { "...": "from supplied_scopus.author" },
   "publications":[ { "...": "from supplied_scopus.publications" } ],
-  "data_source": "wizdam_sikola_db",
+  "data_source": "sangia_sikola_db",
   "cache_info":  { "from_cache": false }
 }
 ```
@@ -121,11 +121,11 @@ Send pre-fetched Scopus data from Wizdam Sikola DB to skip the Scopus cURL call:
 
 ---
 
-## Usage in Wizdam Sikola
+## Usage in Sangia Sikola
 
 ### 1. Enrich Researcher Profile with Scopus Data
 
-Scopus provides h-index, citation count, and verified publication list — critical for the Academic pillar of Wizdam Impact Score.
+Scopus provides h-index, citation count, and verified publication list — critical for the Academic pillar of Sangia Impact Score.
 
 ```php
 public function enrichWithScopus(string $orcid, string $scopusId): array
@@ -155,7 +155,7 @@ public function enrichWithScopus(string $orcid, string $scopusId): array
 
 ### 2. Link Scopus ID to ORCID
 
-ORCID works often include the Scopus Author ID in `external_ids`. Wizdam Sikola should extract and store it:
+ORCID works often include the Scopus Author ID in `external_ids`. Sangia Sikola should extract and store it:
 
 ```php
 $orcidProfile = $this->getOrcidProfile($orcid);
@@ -188,7 +188,7 @@ CREATE TABLE researcher_metrics (
 );
 ```
 
-### 4. Use in Wizdam Sikola Dashboard
+### 4. Use in Sangia Sikola Dashboard
 
 The Scopus data powers several UI components:
 - **Researcher card:** h-index badge, citation count, document count

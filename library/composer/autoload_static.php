@@ -7,7 +7,7 @@ namespace Composer\Autoload;
 class ComposerStaticInita95e92c848acbc724a61a79a300362b6
 {
     public static $prefixLengthsPsr4 = array (
-        'S' => 
+        'S' =>
         array (
             'Sangia\\Gateway\\' => 15,
             'Sangia\\Core\\' => 12,
@@ -16,15 +16,15 @@ class ComposerStaticInita95e92c848acbc724a61a79a300362b6
     );
 
     public static $prefixDirsPsr4 = array (
-        'Sangia\\Gateway\\' => 
+        'Sangia\\Gateway\\' =>
         array (
             0 => __DIR__ . '/../..' . '/gateway',
         ),
-        'Sangia\\Core\\' => 
+        'Sangia\\Core\\' =>
         array (
             0 => __DIR__ . '/../..' . '/core',
         ),
-        'Sangia\\Api\\' => 
+        'Sangia\\Api\\' =>
         array (
             0 => __DIR__ . '/../..' . '/src',
         ),
@@ -44,6 +44,7 @@ class ComposerStaticInita95e92c848acbc724a61a79a300362b6
         'Sangia\\Api\\Controllers\\SdgController' => __DIR__ . '/../..' . '/src/Controllers/SdgController.php',
         'Sangia\\Api\\Controllers\\SintaController' => __DIR__ . '/../..' . '/src/Controllers/SintaController.php',
         'Sangia\\Api\\Controllers\\TrendController' => __DIR__ . '/../..' . '/src/Controllers/TrendController.php',
+        'Sangia\\Api\\Database\\Connection' => __DIR__ . '/../..' . '/src/Database/Connection.php',
         'Sangia\\Api\\Middleware\\CorsMiddleware' => __DIR__ . '/../..' . '/src/Middleware/CorsMiddleware.php',
         'Sangia\\Api\\Middleware\\RateLimitMiddleware' => __DIR__ . '/../..' . '/src/Middleware/RateLimitMiddleware.php',
         'Sangia\\Api\\Response' => __DIR__ . '/../..' . '/src/Response.php',
@@ -59,12 +60,17 @@ class ComposerStaticInita95e92c848acbc724a61a79a300362b6
         'Sangia\\Core\\Modules\\SDG\\Services\\Evaluator\\LevelV4Evaluator' => __DIR__ . '/../..' . '/core/Modules/SDG/Services/Evaluator/LevelV4Evaluator.php',
         'Sangia\\Core\\Modules\\SDG\\Services\\SdgAnalyzer' => __DIR__ . '/../..' . '/core/Modules/SDG/Services/SdgAnalyzer.php',
         'Sangia\\Core\\Modules\\SDG\\Services\\SdgClassifier' => __DIR__ . '/../..' . '/core/Modules/SDG/Services/SdgClassifier.php',
+        'Sangia\\Core\\Modules\\SangiaScore\\SangiaScoreEngine' => __DIR__ . '/../..' . '/core/Modules/SangiaScore/SangiaScoreEngine.php',
         'Sangia\\Core\\Modules\\Scopus\\ScopusModule' => __DIR__ . '/../..' . '/core/Modules/Scopus/ScopusModule.php',
         'Sangia\\Core\\Modules\\Sinta\\SintaModule' => __DIR__ . '/../..' . '/core/Modules/Sinta/SintaModule.php',
         'Sangia\\Core\\Modules\\Trend\\TrendAnalysisEngine' => __DIR__ . '/../..' . '/core/Modules/Trend/TrendAnalysisEngine.php',
-        'Sangia\\Core\\Modules\\WizdamScore\\WizdamScoreEngine' => __DIR__ . '/../..' . '/core/Modules/WizdamScore/WizdamScoreEngine.php',
         'Sangia\\Core\\Shared\\ApiClients\\CrossrefClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/CrossrefClient.php',
+        'Sangia\\Core\\Shared\\ApiClients\\HttpClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/HttpClient.php',
+        'Sangia\\Core\\Shared\\ApiClients\\OpenAlexClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/OpenAlexClient.php',
+        'Sangia\\Core\\Shared\\ApiClients\\OpenCitationsClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/OpenCitationsClient.php',
         'Sangia\\Core\\Shared\\ApiClients\\OrcidClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/OrcidClient.php',
+        'Sangia\\Core\\Shared\\ApiClients\\PubMedClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/PubMedClient.php',
+        'Sangia\\Core\\Shared\\ApiClients\\SemanticScholarClient' => __DIR__ . '/../..' . '/core/Shared/ApiClients/SemanticScholarClient.php',
         'Sangia\\Core\\Shared\\Helpers\\MathHelper' => __DIR__ . '/../..' . '/core/Shared/Helpers/MathHelper.php',
         'Sangia\\Core\\Shared\\Helpers\\TextHelper' => __DIR__ . '/../..' . '/core/Shared/Helpers/TextHelper.php',
         'Sangia\\Core\\Shared\\Services\\CacheService' => __DIR__ . '/../..' . '/core/Shared/Services/CacheService.php',

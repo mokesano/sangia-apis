@@ -4,53 +4,86 @@ declare(strict_types=1);
 namespace Sangia\Core\Modules\Citation;
 
 use Sangia\Core\Shared\ApiClients\CrossrefClient;
+use Sangia\Core\Shared\ApiClients\OpenCitationsClient;
+use Sangia\Core\Shared\ApiClients\SemanticScholarClient;
+use Sangia\Core\Shared\ApiClients\OpenAlexClient;
+use Sangia\Core\Shared\ApiClients\PubMedClient;
 
 /**
- * Citation Module — multi-source citation retrieval for a DOI.
- * Sources: OpenCitations → Crossref → OpenAlex → Semantic Scholar
+ * Citation Module — multi-source citation retrieval with deduplication.
  *
- * No result caching here. Wizdam Sikola owns all persistence:
- *   response includes 'raw_data' so Wizdam Sikola can save results to its DB.
+ * Sources (incoming citations — papers that cite the given DOI):
+ *   1. OpenCitations (COCI)   — open, DOI-based
+ *   2. Semantic Scholar       — comprehensive, needs API key for full rate limits
+ *   3. OpenAlex               — 250M+ works, year-by-year breakdown
+ *   4. PubMed                 — biomedical focus, PMC cited-by
+ *   5. Crossref               — citation count only (no citing-paper list)
+ *
+ * No result caching here. Sangia Sikola owns all persistence:
+ *   response includes 'raw_data' so Sangia Sikola can cache results in its DB.
  */
 class CitationModule
 {
-    private const TIMEOUT = 15;
+    private const LIMIT_DEFAULT = 100;
 
-    private CrossrefClient $crossref;
+    private CrossrefClient        $crossref;
+    private OpenCitationsClient   $openCitations;
+    private SemanticScholarClient $semanticScholar;
+    private OpenAlexClient        $openAlex;
+    private PubMedClient          $pubmed;
 
     public function __construct()
     {
-        $this->crossref = new CrossrefClient();
+        $this->crossref        = new CrossrefClient();
+        $this->openCitations   = new OpenCitationsClient();
+        $this->semanticScholar = new SemanticScholarClient();
+        $this->openAlex        = new OpenAlexClient();
+        $this->pubmed          = new PubMedClient();
     }
 
-    public function getCitations(string $doi, int $limit = 15, bool $refresh = false): array
+    public function getCitations(string $doi, int $limit = self::LIMIT_DEFAULT): array
     {
         $doi = strtolower(trim($doi));
-        if (empty($doi)) return $this->error(400, 'doi is required');
+        if (empty($doi)) {
+            http_response_code(400);
+            return ['status' => 'error', 'code' => 400, 'message' => 'doi is required'];
+        }
 
         $meta = $this->fetchMetadata($doi);
 
-        $citations = [
-            'opencitations'   => $this->fetchOpenCitations($doi, $limit),
-            'crossref'        => $this->fetchCrossrefCitedBy($doi, $limit),
-            'openalex'        => $this->fetchOpenAlex($doi, $limit),
-            'semantic_scholar'=> $this->fetchSemanticScholar($doi, $limit),
+        // Fetch from all sources in parallel (sequential here — PHP limitation)
+        $raw = [
+            'opencitations'   => $this->openCitations->getCitations($doi, $limit),
+            'semantic_scholar' => $this->semanticScholar->getCitations($doi, $limit),
+            'openalex'        => $this->openAlex->getCitations($doi, $limit),
+            'pubmed'          => $this->pubmed->getCitationsByDoi($doi, $limit),
         ];
 
-        $counts = array_map('count', $citations);
+        // Crossref provides count only (no citing-paper list)
+        $crossrefCount = (int) ($meta['is_referenced_by'] ?? 0);
+
+        $counts = [
+            'opencitations'   => count($raw['opencitations']),
+            'semantic_scholar' => count($raw['semantic_scholar']),
+            'openalex'        => count($raw['openalex']),
+            'pubmed'          => count($raw['pubmed']),
+            'crossref'        => $crossrefCount,
+        ];
+        $counts['best'] = max(array_values($counts));
+
+        $consolidated = $this->consolidate($raw);
 
         return [
-            'status'           => 'success',
-            'doi'              => $doi,
-            'article_metadata' => $meta,
-            'citations'        => $citations,
-            'citation_count'   => $counts,
-            'total_unique'     => $this->countUnique($citations),
-            'api_version'      => 'v1.2-modular',
-            'data_source'      => 'external_apis',
-            'cache_info'       => ['from_cache' => false],
-            // Wizdam Sikola should save this to its citations_cache table
-            'raw_data'         => [
+            'status'            => 'success',
+            'doi'               => $doi,
+            'article_metadata'  => $meta,
+            'citation_counts'   => $counts,
+            'consolidated'      => $consolidated,
+            'total_unique'      => count($consolidated),
+            'per_source'        => $raw,
+            'api_version'       => 'v2.0-multisource',
+            'data_source'       => 'external_apis',
+            'raw_data'          => [
                 'doi'        => $doi,
                 'metadata'   => $meta,
                 'counts'     => $counts,
@@ -66,11 +99,16 @@ class CitationModule
         try {
             $data = $this->crossref->getWorkData($doi);
             $msg  = $data['message'] ?? [];
+            $issn = $msg['ISSN'][0] ?? $msg['issn-type'][0]['value'] ?? null;
             return [
                 'title'            => $msg['title'][0] ?? '',
-                'authors'          => array_map(fn($a) => trim(($a['given'] ?? '') . ' ' . ($a['family'] ?? '')), $msg['author'] ?? []),
+                'authors'          => array_map(
+                    fn($a) => trim(($a['given'] ?? '') . ' ' . ($a['family'] ?? '')),
+                    $msg['author'] ?? []
+                ),
                 'publication_year' => (int) ($msg['published']['date-parts'][0][0] ?? 0) ?: null,
                 'journal'          => $msg['container-title'][0] ?? null,
+                'issn'             => $issn,
                 'volume'           => $msg['volume'] ?? null,
                 'issue'            => $msg['issue'] ?? null,
                 'pages'            => $msg['page'] ?? null,
@@ -84,101 +122,56 @@ class CitationModule
         }
     }
 
-    // ── Citation sources ──────────────────────────────────────────────────────
+    // ── Consolidation ─────────────────────────────────────────────────────────
 
-    private function fetchOpenCitations(string $doi, int $limit): array
+    /**
+     * Merges all source lists into a deduplicated array keyed by DOI.
+     * Items without a DOI are included per source but not deduplicated.
+     * Each entry carries a 'sources' array listing every source that found it.
+     */
+    private function consolidate(array $raw): array
     {
-        $url  = "https://opencitations.net/index/api/v1/citations/$doi?format=json&limit=$limit";
-        $data = $this->httpGet($url);
-        if (!is_array($data)) return [];
+        $byDoi   = [];  // doi → merged entry
+        $noDoi   = [];  // entries without a DOI
 
-        return array_map(fn($c) => [
-            'citing_doi' => $c['citing'] ?? null,
-            'title'      => null,
-            'year'       => null,
-            'source'     => 'opencitations',
-        ], array_slice($data, 0, $limit));
-    }
+        foreach ($raw as $source => $items) {
+            foreach ($items as $item) {
+                $doi = isset($item['citing_doi']) ? strtolower(trim($item['citing_doi'] ?? '')) : '';
 
-    private function fetchCrossrefCitedBy(string $doi, int $limit): array
-    {
-        $url   = "https://api.crossref.org/works/$doi/references?rows=$limit&mailto=info@sangia.org";
-        $data  = $this->httpGet($url);
-        $items = $data['message']['items'] ?? [];
+                if ($doi === '' || $doi === null) {
+                    $noDoi[] = array_merge($item, ['sources' => [$source]]);
+                    continue;
+                }
 
-        return array_map(fn($item) => [
-            'citing_doi' => $item['DOI'] ?? null,
-            'title'      => $item['article-title'] ?? $item['unstructured'] ?? null,
-            'year'       => (int) ($item['year'] ?? 0) ?: null,
-            'source'     => 'crossref',
-        ], array_slice($items, 0, $limit));
-    }
-
-    private function fetchOpenAlex(string $doi, int $limit): array
-    {
-        $url  = "https://api.openalex.org/works/https://doi.org/$doi?select=cited_by_api_url,cited_by_count";
-        $meta = $this->httpGet($url);
-        if (empty($meta['cited_by_api_url'])) return [];
-
-        $data  = $this->httpGet($meta['cited_by_api_url'] . "&per-page=$limit");
-        $works = $data['results'] ?? [];
-
-        return array_map(fn($w) => [
-            'citing_doi' => $w['doi'] ?? null,
-            'title'      => $w['title'] ?? null,
-            'year'       => (int) ($w['publication_year'] ?? 0) ?: null,
-            'source'     => 'openalex',
-        ], array_slice($works, 0, $limit));
-    }
-
-    private function fetchSemanticScholar(string $doi, int $limit): array
-    {
-        $url   = "https://api.semanticscholar.org/graph/v1/paper/DOI:$doi/citations?limit=$limit&fields=title,year,externalIds";
-        $data  = $this->httpGet($url);
-        $items = $data['data'] ?? [];
-
-        return array_map(fn($item) => [
-            'citing_doi' => $item['citingPaper']['externalIds']['DOI'] ?? null,
-            'title'      => $item['citingPaper']['title'] ?? null,
-            'year'       => (int) ($item['citingPaper']['year'] ?? 0) ?: null,
-            'source'     => 'semantic_scholar',
-        ], array_slice($items, 0, $limit));
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private function countUnique(array $citations): int
-    {
-        $dois = [];
-        foreach ($citations as $source) {
-            foreach ($source as $c) {
-                if (!empty($c['citing_doi'])) $dois[$c['citing_doi']] = true;
+                if (isset($byDoi[$doi])) {
+                    // Merge: add source, fill missing fields from this source
+                    $byDoi[$doi]['sources'][] = $source;
+                    foreach (['title', 'year', 'authors', 'citation_count'] as $f) {
+                        if (empty($byDoi[$doi][$f]) && !empty($item[$f])) {
+                            $byDoi[$doi][$f] = $item[$f];
+                        }
+                    }
+                } else {
+                    $byDoi[$doi] = [
+                        'doi'            => $doi,
+                        'title'          => $item['title'] ?? null,
+                        'year'           => $item['year'] ?? null,
+                        'authors'        => $item['authors'] ?? [],
+                        'citation_count' => $item['citation_count'] ?? null,
+                        'sources'        => [$source],
+                    ];
+                }
             }
         }
-        return count($dois);
-    }
 
-    private function httpGet(string $url): array
-    {
-        $ch = curl_init($url);
-        curl_setopt_array($ch, [
-            CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => self::TIMEOUT,
-            CURLOPT_CONNECTTIMEOUT => 5,
-            CURLOPT_USERAGENT      => 'Sangia-API-Engine/1.0 (mailto:info@sangia.org)',
-            CURLOPT_FOLLOWLOCATION => true,
-        ]);
-        $body     = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        // Sort by year desc, then by number of confirming sources desc
+        $merged = array_values($byDoi);
+        usort($merged, function ($a, $b) {
+            $sc = count($b['sources']) - count($a['sources']);
+            if ($sc !== 0) return $sc;
+            return (int) ($b['year'] ?? 0) - (int) ($a['year'] ?? 0);
+        });
 
-        if ($httpCode !== 200 || !$body) return [];
-        return json_decode($body, true) ?? [];
-    }
-
-    private function error(int $code, string $message): array
-    {
-        http_response_code($code);
-        return ['status' => 'error', 'code' => $code, 'message' => $message];
+        return array_merge($merged, $noDoi);
     }
 }

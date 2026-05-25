@@ -53,7 +53,7 @@ List all available SDG classifier versions with their default weights and score 
 
 ---
 
-## Usage in Wizdam Sikola
+## Usage in Sangia Sikola
 
 ### 1. Admin Panel — Version Selector
 

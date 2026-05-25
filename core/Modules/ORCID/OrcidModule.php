@@ -9,9 +9,9 @@ use Sangia\Core\Shared\ApiClients\CrossrefClient;
 /**
  * ORCID Module — fetches researcher profile and works.
  *
- * No result caching here. Wizdam Sikola owns all persistence:
+ * No result caching here. Sangia Sikola owns all persistence:
  *   - pass $suppliedWorks to skip the ORCID cURL call entirely
- *   - response always includes 'raw_data' so Wizdam Sikola can save it to DB
+ *   - response always includes 'raw_data' so Sangia Sikola can save it to DB
  */
 class OrcidModule
 {
@@ -26,10 +26,10 @@ class OrcidModule
 
     /**
      * @param string     $orcid          ORCID iD
-     * @param bool       $refresh        Force re-fetch even if Wizdam Sikola supplied data
+     * @param bool       $refresh        Force re-fetch even if Sangia Sikola supplied data
      * @param int        $limit          Max works to fetch from ORCID API
-     * @param array|null $suppliedWorks  Works already stored in Wizdam Sikola DB — skips cURL
-     * @param array|null $suppliedPerson Person summary already stored in Wizdam Sikola DB
+     * @param array|null $suppliedWorks  Works already stored in Sangia Sikola DB — skips cURL
+     * @param array|null $suppliedPerson Person summary already stored in Sangia Sikola DB
      */
     public function getProfile(
         string  $orcid,
@@ -43,7 +43,7 @@ class OrcidModule
             return $this->error(400, "Invalid ORCID format: $orcid");
         }
 
-        // Use supplied data from Wizdam Sikola DB (no external call needed)
+        // Use supplied data from Sangia Sikola DB (no external call needed)
         if (!$refresh && $suppliedWorks !== null) {
             return [
                 'status'         => 'success',
@@ -52,7 +52,7 @@ class OrcidModule
                 'works'          => $suppliedWorks,
                 'works_count'    => count($suppliedWorks),
                 'api_version'    => 'v2.2-modular',
-                'data_source'    => 'wizdam_sikola_db',
+                'data_source'    => 'sangia_sikola_db',
                 'cache_info'     => ['from_cache' => true],
             ];
         }
@@ -77,7 +77,7 @@ class OrcidModule
             'api_version'    => 'v2.2-modular',
             'data_source'    => 'orcid_api',
             'cache_info'     => ['from_cache' => false],
-            // Wizdam Sikola should save these fields to its DB
+            // Sangia Sikola should save these fields to its DB
             'raw_data'       => [
                 'person'     => $person,
                 'works'      => $works,
@@ -98,23 +98,37 @@ class OrcidModule
         $kws    = $raw['keywords']['keyword'] ?? [];
         $addrs  = $raw['addresses']['address'] ?? [];
 
+        $extIdList      = is_array($extIds) ? $extIds : [$extIds];
+        $scopusAuthorId = null;
+        $researcherId   = null; // ResearcherID / Web of Science ID
+
+        foreach ($extIdList as $id) {
+            $type = strtolower(str_replace([' ', '_'], '-', $id['external-id-type'] ?? ''));
+            $val  = $id['external-id-value'] ?? null;
+            if ($val === null) continue;
+            if ($type === 'scopus-author-id')  $scopusAuthorId = $val;
+            if ($type === 'rid' || $type === 'researcher-id') $researcherId = $val;
+        }
+
         return [
-            'name'         => trim(($name['given-names']['value'] ?? '') . ' ' . ($name['family-name']['value'] ?? '')),
-            'given_names'  => $name['given-names']['value'] ?? '',
-            'family_name'  => $name['family-name']['value'] ?? '',
-            'credit_name'  => $name['credit-name']['value'] ?? null,
-            'bio'          => $bio['content'] ?? null,
-            'emails'       => array_map(fn($e) => $e['email'] ?? '', $emails),
-            'keywords'     => array_map(fn($k) => $k['content'] ?? '', $kws),
-            'external_ids' => array_map(fn($id) => [
+            'name'            => trim(($name['given-names']['value'] ?? '') . ' ' . ($name['family-name']['value'] ?? '')),
+            'given_names'     => $name['given-names']['value'] ?? '',
+            'family_name'     => $name['family-name']['value'] ?? '',
+            'credit_name'     => $name['credit-name']['value'] ?? null,
+            'bio'             => $bio['content'] ?? null,
+            'emails'          => array_map(fn($e) => $e['email'] ?? '', $emails),
+            'keywords'        => array_map(fn($k) => $k['content'] ?? '', $kws),
+            'scopus_author_id' => $scopusAuthorId,
+            'researcher_id'   => $researcherId,
+            'external_ids'    => array_map(fn($id) => [
                 'type'  => $id['external-id-type'] ?? '',
                 'value' => $id['external-id-value'] ?? '',
-            ], is_array($extIds) ? $extIds : [$extIds]),
-            'urls'         => array_map(fn($u) => [
+            ], $extIdList),
+            'urls'            => array_map(fn($u) => [
                 'name' => $u['url-name'] ?? '',
                 'url'  => $u['url']['value'] ?? '',
             ], is_array($urls) ? $urls : []),
-            'country'      => $addrs[0]['country']['value'] ?? null,
+            'country'         => $addrs[0]['country']['value'] ?? null,
         ];
     }
 

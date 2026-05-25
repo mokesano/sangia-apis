@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace Sangia\Api\Controllers;
 
 use Sangia\Api\Response;
-use Sangia\Core\Modules\WizdamScore\WizdamScoreEngine;
+use Sangia\Core\Modules\SangiaScore\SangiaScoreEngine;
 
 class ImpactController extends BaseController
 {
@@ -23,7 +23,7 @@ class ImpactController extends BaseController
         $batch    = max(1, min(50, (int) ($body['batch_size'] ?? $_GET['batch_size'] ?? 20)));
         $weights  = $body['weights']          ?? [];
 
-        // Wizdam Sikola supplies pre-fetched data from its DB to avoid redundant cURL
+        // Sangia Sikola supplies pre-fetched data from its DB to avoid redundant cURL
         $suppliedWorks  = $body['supplied_works']                         ?? [];
         $suppliedPerson = isset($body['supplied_person']) ? $body['supplied_person'] : null;
         $suppliedScopus = isset($body['supplied_scopus']) ? $body['supplied_scopus'] : null;
@@ -34,7 +34,7 @@ class ImpactController extends BaseController
         }
 
         Response::json(
-            (new WizdamScoreEngine())->calculate(
+            (new SangiaScoreEngine())->calculate(
                 $orcid, $scopusId, $social, $economic,
                 $refresh, $batch, $offset, $weights,
                 $suppliedWorks, $suppliedPerson, $suppliedScopus

@@ -27,10 +27,10 @@ class SdgController extends BaseController
         $offset   = max(0, (int) ($body['offset']     ?? $_GET['offset']     ?? 0));
         $batch    = max(1, min(50, (int) ($body['batch_size'] ?? $_GET['batch_size'] ?? 20)));
 
-        // Wizdam Sikola supplies pre-fetched works from its DB to avoid redundant cURL
+        // Sangia Sikola supplies pre-fetched works from its DB to avoid redundant cURL
         $suppliedWorks = $body['supplied_works'] ?? [];
 
-        // Merge: VersionConfig defaults ← request-level weights from Wizdam Sikola admin
+        // Merge: VersionConfig defaults ← request-level weights from Sangia Sikola admin
         $versionCfg     = VersionConfig::get($version);
         $requestWeights = $body['weights'] ?? [];
         if (!empty($requestWeights)) {
@@ -98,17 +98,18 @@ class SdgController extends BaseController
                 'GET  /api/v1/citation/doi'            => 'Multi-source citation data for a DOI',
                 'GET  /api/v1/journal/metrics'         => 'Scopus journal metrics (CiteScore, SJR, SNIP)',
                 'GET  /api/v1/sinta/score'             => 'SINTA journal impact score',
-                'POST /api/v1/impact/calculate'        => 'Wizdam Impact Score — composite (batched)',
+                'POST /api/v1/impact/calculate'        => 'Sangia Impact Score — composite (batched)',
                 'POST /api/v1/trend/analyze'           => 'Trend Analysis — impact_trajectory | sdg_evolution | collaboration_network | citation_growth',
                 'POST /api/v1/recommendation/policy'   => 'Policy Recommendations — government | institution | industry | researcher | community',
                 'POST /api/v1/admin/keys/revoke'       => 'Revoke an API key (service calls only)',
             ],
-            'supplied_data'   => 'All ORCID-based endpoints accept "supplied_works" and "supplied_scopus" in request body to skip external API calls when Wizdam Sikola already has the data.',
-            'raw_data'        => 'When wizdam-apis fetches from external APIs, response includes "raw_data" for Wizdam Sikola to persist in its database.',
-            'weight_override' => 'All classify + impact endpoints accept a "weights" object to override scoring weights set in the Wizdam Sikola admin panel.',
+            'supplied_data'   => 'All ORCID-based endpoints accept "supplied_works" and "supplied_scopus" in request body to skip external API calls when Sangia Sikola already has the data.',
+            'raw_data'        => 'When sangia-apis fetches from external APIs, response includes "raw_data" for Sangia Sikola to persist in its database.',
+            'weight_override' => 'All classify + impact endpoints accept a "weights" object to override scoring weights set in the Sangia Sikola admin panel.',
             'batch_info'      => 'ORCID-based endpoints support offset + batch_size to avoid timeout.',
             'auth'            => 'X-API-Key: wz_{user_id}_{timestamp}_{hmac16}',
-            'key_info'        => 'Dapatkan API key di Wizdam Sikola → Profil → API Keys',
+            'key_source'      => 'sangia_sikola',
+            'key_path'        => '/profile/api-keys',
         ]);
     }
 }

@@ -1,39 +1,39 @@
-# Catatan Pengembangan untuk Wizdam Sikola
+# Catatan Pengembangan untuk Sangia Sikola
 
-Dokumen ini berisi poin-poin penting yang harus diperhatikan saat membangun interface Wizdam Sikola sebagai frontend dari Sangia API Engine (wizdam-apis).
+Dokumen ini berisi poin-poin penting yang harus diperhatikan saat membangun interface Sangia Sikola sebagai frontend dari Sangia API Engine (sangia-apis).
 
 ---
 
 ## 1. Autentikasi API Key
 
-Wizdam Sikola adalah **satu-satunya** yang men-generate API key untuk user.
+Sangia Sikola adalah **satu-satunya** yang men-generate API key untuk user.
 
-### Generate key (PHP — gunakan di backend Wizdam Sikola):
+### Generate key (PHP — gunakan di backend Sangia Sikola):
 ```php
 use Sangia\Gateway\ApiKeyMiddleware;
 
-$secret = env('WIZDAM_SHARED_SECRET'); // harus identik di kedua sistem
+$secret = env('SANGIA_SHARED_SECRET'); // harus identik di kedua sistem
 $key    = ApiKeyMiddleware::generateKey($userId, $secret);
-// Simpan $key ke tabel users (kolom api_key) di wizdam_sikola DB
+// Simpan $key ke tabel users (kolom api_key) di sangia_sikola DB
 // Kirim $key ke user melalui UI
 ```
 
 ### Cabut key:
 ```php
-// Panggil endpoint admin wizdam-apis
+// Panggil endpoint admin sangia-apis
 POST /api/v1/admin/keys/revoke
-X-API-Key: {service_key_wizdam_sikola}
+X-API-Key: {service_key_sangia_sikola}
 { "key": "wz_42_1719000000_a3f8e2c1d5b7" }
 ```
 
-**Penting:** Simpan `WIZDAM_SHARED_SECRET` yang **identik** di `.env` kedua sistem.
+**Penting:** Simpan `SANGIA_SHARED_SECRET` yang **identik** di `.env` kedua sistem.
 
 ---
 
 ## 2. Pengelolaan Bobot Analisis (Admin Panel)
 
-Wizdam Sikola mengontrol penuh semua bobot analisis melalui admin panel.  
-Bobot dikirimkan ke wizdam-apis dalam setiap request — nilai dalam kode hanya fallback.
+Sangia Sikola mengontrol penuh semua bobot analisis melalui admin panel.  
+Bobot dikirimkan ke sangia-apis dalam setiap request — nilai dalam kode hanya fallback.
 
 ### Bobot yang bisa dikonfigurasi:
 
@@ -56,7 +56,7 @@ Bobot dikirimkan ke wizdam-apis dalam setiap request — nilai dalam kode hanya 
 ```
 Kirim di body request `POST /api/v1/sdg/{version}/classify`.
 
-#### b) Bobot Komposit Wizdam Impact Score
+#### b) Bobot Komposit Sangia Impact Score
 ```json
 {
   "weights": {
@@ -69,7 +69,7 @@ Kirim di body request `POST /api/v1/sdg/{version}/classify`.
 ```
 Kirim di body request `POST /api/v1/impact/calculate`.
 
-### Rekomendasi tabel di DB Wizdam Sikola:
+### Rekomendasi tabel di DB Sangia Sikola:
 ```sql
 CREATE TABLE analysis_weight_configs (
   id          INT PRIMARY KEY AUTO_INCREMENT,
@@ -84,22 +84,22 @@ Saat memanggil API, load config dari DB dan sertakan dalam request body.
 
 ---
 
-## 3. Arsitektur Data — Wizdam Sikola sebagai Sumber Kebenaran Tunggal
+## 3. Arsitektur Data — Sangia Sikola sebagai Sumber Kebenaran Tunggal
 
-wizdam-apis adalah **pure analysis engine** — tidak menyimpan hasil apapun secara permanen.  
-Semua persistensi adalah tanggung jawab Wizdam Sikola.
+sangia-apis adalah **pure analysis engine** — tidak menyimpan hasil apapun secara permanen.  
+Semua persistensi adalah tanggung jawab Sangia Sikola.
 
-### Empat jalur masuk data ke Wizdam Sikola:
+### Empat jalur masuk data ke Sangia Sikola:
 
-1. **Direct API call** — wizdam-apis fetch dari ORCID/Scopus/dll, lalu mengembalikan `raw_data` untuk disimpan
-2. **Input dari UI** — user mengisi data social/economic, upload karya secara manual di Wizdam Sikola
+1. **Direct API call** — sangia-apis fetch dari ORCID/Scopus/dll, lalu mengembalikan `raw_data` untuk disimpan
+2. **Input dari UI** — user mengisi data social/economic, upload karya secara manual di Sangia Sikola
 3. **Registrasi + sync** — user koneksikan akun ORCID/Scopus saat mendaftar, data di-sync ke DB
-4. **Proactive crawler** — Wizdam Sikola menjalankan crawler mandiri untuk memperbarui data secara berkala
+4. **Proactive crawler** — Sangia Sikola menjalankan crawler mandiri untuk memperbarui data secara berkala
 
-### Pola `supplied_data` — Kirim data dari DB ke wizdam-apis
+### Pola `supplied_data` — Kirim data dari DB ke sangia-apis
 
-Jika Wizdam Sikola sudah memiliki data di DB, kirimkan dalam request body.  
-wizdam-apis menggunakan data tersebut tanpa cURL ke API eksternal.
+Jika Sangia Sikola sudah memiliki data di DB, kirimkan dalam request body.  
+sangia-apis menggunakan data tersebut tanpa cURL ke API eksternal.
 
 ```json
 {
@@ -127,17 +127,17 @@ wizdam-apis menggunakan data tersebut tanpa cURL ke API eksternal.
 }
 ```
 
-Response saat data disupply dari DB: `"data_source": "wizdam_sikola_db"`  
-wizdam-apis tidak akan melakukan cURL ke ORCID/Scopus.
+Response saat data disupply dari DB: `"data_source": "sangia_sikola_db"`  
+sangia-apis tidak akan melakukan cURL ke ORCID/Scopus.
 
 ### Pola `raw_data` — Simpan data yang baru diambil ke DB
 
-Ketika wizdam-apis terpaksa fetch dari API eksternal (karena data tidak disupply),  
+Ketika sangia-apis terpaksa fetch dari API eksternal (karena data tidak disupply),  
 response menyertakan field `raw_data` dengan data mentah dan `fetched_at`.  
-**Wizdam Sikola harus menyimpan ini ke tabelnya** agar request berikutnya bisa menggunakan `supplied_data`.
+**Sangia Sikola harus menyimpan ini ke tabelnya** agar request berikutnya bisa menggunakan `supplied_data`.
 
 ```php
-// Contoh: menyimpan raw_data setelah menerima response dari wizdam-apis
+// Contoh: menyimpan raw_data setelah menerima response dari sangia-apis
 $response = $sangiaClient->getOrcidProfile($orcid);
 
 if (isset($response['raw_data'])) {
@@ -152,7 +152,7 @@ if (isset($response['raw_data'])) {
 }
 ```
 
-### Rekomendasi tabel cache di DB Wizdam Sikola:
+### Rekomendasi tabel cache di DB Sangia Sikola:
 ```sql
 -- Profil peneliti (ORCID + Scopus)
 CREATE TABLE author_profiles_cache (
@@ -236,9 +236,9 @@ async function runBatchAnalysis(endpoint, payload, onProgress) {
 
 ---
 
-## 5. Suplai Data ke WizdamScoreEngine
+## 5. Suplai Data ke SangiaScoreEngine
 
-Wizdam Impact Score menjadi **powerful** jika pilar Social dan Economic diisi dengan data nyata.
+Sangia Impact Score menjadi **powerful** jika pilar Social dan Economic diisi dengan data nyata.
 
 ### Data Social Pillar (0–100 per metrik):
 | Field | Cara Mendapatkan |
@@ -257,9 +257,9 @@ Wizdam Impact Score menjadi **powerful** jika pilar Social dan Economic diisi de
 | `startup_spinoffs` | Input manual / data DIKTI |
 
 ### Rekomendasi flow data:
-1. User mengisi data social/economic di profil Wizdam Sikola
+1. User mengisi data social/economic di profil Sangia Sikola
 2. Admin dapat memverifikasi dan menambahkan data dari crawler
-3. Data disimpan di tabel `researcher_impact_inputs` di DB Wizdam Sikola
+3. Data disimpan di tabel `researcher_impact_inputs` di DB Sangia Sikola
 4. Saat memanggil `/api/v1/impact/calculate`, load dari DB dan kirim ke API
 
 ```sql
@@ -298,7 +298,7 @@ Simpan hasilnya di `analysis_history` untuk ditampilkan di dashboard tanpa re-co
 
 ### Policy Recommendation (`POST /api/v1/recommendation/policy`)
 
-Kirim `research_landscape` dari DB Wizdam Sikola (hasil agregat analisis sebelumnya):
+Kirim `research_landscape` dari DB Sangia Sikola (hasil agregat analisis sebelumnya):
 
 ```php
 $landscape = [
@@ -318,10 +318,10 @@ Semakin lengkap `research_landscape`, semakin relevan rekomendasi yang dihasilka
 
 ---
 
-## 7. Arsitektur yang Disarankan di Wizdam Sikola
+## 7. Arsitektur yang Disarankan di Sangia Sikola
 
 ```
-Wizdam Sikola (Frontend + Backend PHP/Laravel)
+Sangia Sikola (Frontend + Backend PHP/Laravel)
 │
 ├── Admin Panel
 │   ├── User Management (generate/revoke API keys)
@@ -337,7 +337,7 @@ Wizdam Sikola (Frontend + Backend PHP/Laravel)
 │   └── Policy Recommendations
 │
 └── API Integration Layer
-    ├── SangiaApiClient.php  (wrapper untuk semua call ke wizdam-apis)
+    ├── SangiaApiClient.php  (wrapper untuk semua call ke sangia-apis)
     ├── WeightConfigService.php  (load config dari DB, sertakan di request)
     ├── BatchProcessor.php  (handle pola loop batch)
     └── RawDataPersister.php  (simpan raw_data ke tabel cache)
@@ -398,16 +398,16 @@ class SangiaApiClient {
 
 ## 8. CORS
 
-Tambahkan domain Wizdam Sikola ke `CORS_ALLOWED_ORIGINS` di `.env` wizdam-apis:
+Tambahkan domain Sangia Sikola ke `CORS_ALLOWED_ORIGINS` di `.env` sangia-apis:
 ```
-CORS_ALLOWED_ORIGINS=https://app.wizdam.id,https://admin.wizdam.id,http://localhost:3000
+CORS_ALLOWED_ORIGINS=https://app.sangia.org,https://admin.sangia.org,http://localhost:3000
 ```
 
 ---
 
 ## 9. Monitoring & Logging
 
-Wizdam Sikola sebaiknya menyimpan log setiap call ke wizdam-apis di DB:
+Sangia Sikola sebaiknya menyimpan log setiap call ke sangia-apis di DB:
 ```sql
 CREATE TABLE api_call_logs (
   id            BIGINT PRIMARY KEY AUTO_INCREMENT,
@@ -416,12 +416,12 @@ CREATE TABLE api_call_logs (
   params        JSON,
   status        VARCHAR(20),
   duration_ms   INT,
-  data_source   VARCHAR(50),   -- 'wizdam_sikola_db' atau 'orcid_api' dll
+  data_source   VARCHAR(50),   -- 'sangia_sikola_db' atau 'orcid_api' dll
   called_at     TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-Log `data_source` berguna untuk mengukur efisiensi: seberapa sering Wizdam Sikola berhasil supply data dari DB vs harus fetch ke API eksternal.
+Log `data_source` berguna untuk mengukur efisiensi: seberapa sering Sangia Sikola berhasil supply data dari DB vs harus fetch ke API eksternal.
 
 ---
 
@@ -444,15 +444,15 @@ Semua response API mengikuti pola:
 ```json
 {
   "status": "success" | "error" | "processing",
-  "data_source": "wizdam_sikola_db" | "orcid_api" | "scopus_api" | "external_apis",
+  "data_source": "sangia_sikola_db" | "orcid_api" | "scopus_api" | "external_apis",
   "cache_info": { "from_cache": false },
   "raw_data": { "...": "...", "fetched_at": "2025-01-01T00:00:00+00:00" },
   "api_version": "v1.1-batch"
 }
 ```
 
-- `data_source: "wizdam_sikola_db"` → Wizdam Sikola supply data, tidak ada fetch eksternal
-- `data_source: "orcid_api"` → wizdam-apis fetch dari ORCID, simpan `raw_data` ke DB
-- `raw_data` hanya ada saat `data_source` bukan `wizdam_sikola_db`
+- `data_source: "sangia_sikola_db"` → Sangia Sikola supply data, tidak ada fetch eksternal
+- `data_source: "orcid_api"` → sangia-apis fetch dari ORCID, simpan `raw_data` ke DB
+- `raw_data` hanya ada saat `data_source` bukan `sangia_sikola_db`
 
 Selalu periksa `status` sebelum memproses data. Jika `"processing"`, lakukan loop batch.

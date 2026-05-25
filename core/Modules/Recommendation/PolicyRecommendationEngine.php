@@ -8,14 +8,14 @@ namespace Sangia\Core\Modules\Recommendation;
  *
  * Returns language-agnostic structured data (keys, codes, numbers).
  * All human-readable text (titles, descriptions, activity labels) is intentionally
- * excluded — i18n and display are the responsibility of the UI layer (Wizdam Sikola).
+ * excluded — i18n and display are the responsibility of the UI layer (Sangia Sikola).
  *
  * Each recommendation item carries:
- *   'id'            — stable i18n key (e.g. "GOV-01") for Wizdam Sikola translation map
+ *   'id'            — stable i18n key (e.g. "GOV-01") for Sangia Sikola translation map
  *   'priority'      — high | medium | low
  *   'category'      — machine-readable category code
  *   'target_sdgs'   — SDG codes array
- *   'activity_keys' — array of snake_case keys → Wizdam Sikola maps to localized text
+ *   'activity_keys' — array of snake_case keys → Sangia Sikola maps to localized text
  *   'expected_impact' — key:percentage pairs (language-neutral)
  *
  * Supported stakeholder types: government, institution, industry, researcher, community
@@ -174,7 +174,7 @@ class PolicyRecommendationEngine
                 'category'      => 'capacity',
                 'target_sdgs'   => ['SDG4', 'SDG17'],
                 'activity_keys' => [
-                    'integrate_wizdam_sikola_tracking',
+                    'integrate_sangia_sikola_tracking',
                     'researcher_sdg_aligned_training',
                     'annual_sdg_impact_reporting',
                     'sdg_research_clusters',
@@ -226,7 +226,7 @@ class PolicyRecommendationEngine
                     'sdg_keyword_abstract_writing',
                     'open_access_publication',
                     'sdg_research_network_participation',
-                    'wizdam_sikola_impact_monitoring',
+                    'sangia_sikola_impact_monitoring',
                 ],
             ],
             [

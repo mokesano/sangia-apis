@@ -6,8 +6,8 @@ namespace Sangia\Core\Modules\Sinta;
 /**
  * SINTA Module — scrapes SINTA journal metrics.
  *
- * No result caching here. Wizdam Sikola owns all persistence:
- *   response includes 'raw_data' so Wizdam Sikola can save results to its DB.
+ * No result caching here. Sangia Sikola owns all persistence:
+ *   response includes 'raw_data' so Sangia Sikola can save results to its DB.
  */
 class SintaModule
 {
@@ -32,7 +32,7 @@ class SintaModule
             [
                 'meta'       => ['last_update' => date('Y-m-d H:i:s')],
                 'cache_info' => ['from_cache' => false],
-                // Wizdam Sikola should save this to its journal_profiles_cache table
+                // Sangia Sikola should save this to its journal_profiles_cache table
                 'raw_data'   => [
                     'issn'       => $issn,
                     'sinta'      => $data,

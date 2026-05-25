@@ -4,7 +4,7 @@
 **Versi API:** v1  
 **Autentikasi:** `X-API-Key: wz_{user_id}_{timestamp}_{hmac16}`
 
-> API key dihasilkan oleh **Wizdam Sikola** dan divalidasi secara stateless menggunakan HMAC-SHA256.  
+> API key dihasilkan oleh **Sangia Sikola** dan divalidasi secara stateless menggunakan HMAC-SHA256.  
 > Semua endpoint wajib menyertakan API key kecuali yang ditandai _(publik)_.
 
 ---
@@ -35,7 +35,7 @@ Setiap endpoint memiliki dokumentasi terpisah di [`docs/endpoints/`](endpoints/)
 - Response schema dengan contoh JSON
 - Daftar error codes
 - Panduan penggunaan umum
-- Panduan integrasi di Wizdam Sikola (kode PHP + SQL)
+- Panduan integrasi di Sangia Sikola (kode PHP + SQL)
 
 ---
 
@@ -49,7 +49,7 @@ Authorization: Bearer wz_42_1719000000_a3f8e2c1d5b7
 ```
 
 **Format key:** `wz_{user_id}_{unix_timestamp}_{hmac16}`  
-- `hmac16` = 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, WIZDAM_SHARED_SECRET)`  
+- `hmac16` = 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, SANGIA_SHARED_SECRET)`  
 - TTL: 1 tahun sejak `timestamp`
 
 **Response 401 jika key tidak valid:**
@@ -64,13 +64,13 @@ Header response: `X-RateLimit-Limit`, `X-RateLimit-Remaining`
 
 ## Arsitektur Data
 
-wizdam-apis adalah **pure analysis engine** — tidak menyimpan hasil apapun secara permanen.  
-Semua persistensi data adalah tanggung jawab **Wizdam Sikola**.
+sangia-apis adalah **pure analysis engine** — tidak menyimpan hasil apapun secara permanen.  
+Semua persistensi data adalah tanggung jawab **Sangia Sikola**.
 
-### Pola `supplied_data` — Kirim data dari DB Wizdam Sikola
+### Pola `supplied_data` — Kirim data dari DB Sangia Sikola
 
-Jika Wizdam Sikola sudah memiliki data di DB, kirimkan dalam request body.  
-wizdam-apis akan menggunakan data tersebut **tanpa melakukan cURL ke API eksternal**.
+Jika Sangia Sikola sudah memiliki data di DB, kirimkan dalam request body.  
+sangia-apis akan menggunakan data tersebut **tanpa melakukan cURL ke API eksternal**.
 
 ```json
 {
@@ -97,12 +97,12 @@ wizdam-apis akan menggunakan data tersebut **tanpa melakukan cURL ke API ekstern
 }
 ```
 
-Response saat data disupply: `"data_source": "wizdam_sikola_db"`
+Response saat data disupply: `"data_source": "sangia_sikola_db"`
 
-### Pola `raw_data` — Simpan hasil ke DB Wizdam Sikola
+### Pola `raw_data` — Simpan hasil ke DB Sangia Sikola
 
-Ketika wizdam-apis mengambil data dari API eksternal (ORCID/Scopus/dll), response menyertakan field `raw_data` berisi data mentah beserta `fetched_at`.  
-Wizdam Sikola harus menyimpan ini ke tabelnya (citations_cache, author_profiles_cache, dll).
+Ketika sangia-apis mengambil data dari API eksternal (ORCID/Scopus/dll), response menyertakan field `raw_data` berisi data mentah beserta `fetched_at`.  
+Sangia Sikola harus menyimpan ini ke tabelnya (citations_cache, author_profiles_cache, dll).
 
 ```json
 {
@@ -123,7 +123,7 @@ Response saat data diambil dari API eksternal: `"data_source": "orcid_api"` / `"
 ## Override Bobot Analisis
 
 Semua endpoint SDG classify dan impact calculate menerima objek `weights` dalam request body.  
-Bobot dari Wizdam Sikola admin panel **selalu prioritas**; nilai default dalam kode hanya fallback.
+Bobot dari Sangia Sikola admin panel **selalu prioritas**; nilai default dalam kode hanya fallback.
 
 ### SDG Classify — override bobot + threshold:
 ```json
@@ -168,7 +168,7 @@ Client memanggil endpoint berulang kali dengan `next_offset` sampai mendapat `st
 - `offset` (int, default `0`) — posisi mulai batch
 - `batch_size` (int, default `20`, max `50`) — jumlah karya per request
 
-**Contoh alur (JavaScript/Wizdam Sikola):**
+**Contoh alur (JavaScript/Sangia Sikola):**
 ```javascript
 async function classifyWithBatch(orcid, endpoint) {
   let offset = 0;
@@ -252,7 +252,7 @@ Klasifikasi SDG dari teks, DOI, atau ORCID.
 }
 ```
 Gunakan **salah satu**: `title+abstract`, `doi`, atau `orcid`. Jika `orcid`, gunakan pola batch.  
-`supplied_works` — opsional, kirim data karya dari DB Wizdam Sikola untuk skip fetch ORCID.
+`supplied_works` — opsional, kirim data karya dari DB Sangia Sikola untuk skip fetch ORCID.
 
 **Response (title+abstract):**
 ```json
@@ -430,7 +430,7 @@ Skor dan grade jurnal dari SINTA (Kemenristekdikti).
 ---
 
 ### POST `/api/v1/impact/calculate`
-Hitung Wizdam Impact Score (komposit 4 pilar). Mendukung pola batch dan supplied data.
+Hitung Sangia Impact Score (komposit 4 pilar). Mendukung pola batch dan supplied data.
 
 **Request body:**
 ```json
@@ -539,7 +539,7 @@ Analisis tren berdasarkan data karya peneliti.
     "peak_year": 2023,
     "total_works_analyzed": 75
   },
-  "data_source": "wizdam_sikola_db",
+  "data_source": "sangia_sikola_db",
   "api_version": "v1.0-trend"
 }
 ```
@@ -643,7 +643,7 @@ Rekomendasi kebijakan berbasis data riset.
 ---
 
 ### POST `/api/v1/admin/keys/revoke`
-Cabut API key (hanya untuk panggilan dari backend Wizdam Sikola).
+Cabut API key (hanya untuk panggilan dari backend Sangia Sikola).
 
 **Request body:**
 ```json
