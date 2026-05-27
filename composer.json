@@ -6,12 +6,15 @@
     },
     "autoload": {
         "psr-4": {
-            "Sangia\\Api\\":     "src/",
+            "Sangia\\Api\\": "src/",
             "Sangia\\Gateway\\": "gateway/",
-            "Sangia\\Core\\":    "core/"
+            "Sangia\\Core\\": "core/"
         }
     },
     "require": {
         "php": ">=8.2"
+    },
+    "scripts": {
+        "check-branding": "bash tools/check-branding.sh"
     }
 }
