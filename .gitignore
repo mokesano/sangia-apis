@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------
-# WIZDAM APIS - .GITIGNORE CONFIGURATION
+# SANGIA APIS - .GITIGNORE CONFIGURATION
 # Optimized for Laravel/CodeIgniter Hybrid & Unit Testing
 # ---------------------------------------------------------------
 
@@ -8,13 +8,12 @@
 .env.*
 .env.*.local
 !.env.example
-WIZDAM_SHARED_SECRET=
+SANGIA_SHARED_SECRET=
 SEMANTIC_SCHOLAR_API_KEY=
 DIMENSION_API_KEY=
 
 # 2. Composer vendor (we commit library/ intentionally)
 vendor/
-/composer.lock
 
 # 3. FRAMEWORK CACHE & LOGS
 /storage/*.key
@@ -28,11 +27,7 @@ vendor/
 !storage/logs/.gitignore
 
 # 4. Runtime — cache and logs never belong in version control
-writable/
-logs/
 *.log
-/writable/cache/
-/writable/logs/
 /writable/session/
 /writable/uploads/
 !writable/uploads/.gitignore
