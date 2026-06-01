@@ -27,10 +27,10 @@ class SdgController extends BaseController
         $offset   = max(0, (int) ($body['offset']     ?? $_GET['offset']     ?? 0));
         $batch    = max(1, min(50, (int) ($body['batch_size'] ?? $_GET['batch_size'] ?? 20)));
 
-        // Sangia Sikola supplies pre-fetched works from its DB to avoid redundant cURL
+        // Sangia Scieco supplies pre-fetched works from its DB to avoid redundant cURL
         $suppliedWorks = $body['supplied_works'] ?? [];
 
-        // Merge: VersionConfig defaults ← request-level weights from Sangia Sikola admin
+        // Merge: VersionConfig defaults ← request-level weights from Sangia Scieco admin
         $versionCfg     = VersionConfig::get($version);
         $requestWeights = $body['weights'] ?? [];
         if (!empty($requestWeights)) {
@@ -103,12 +103,12 @@ class SdgController extends BaseController
                 'POST /api/v1/recommendation/policy'   => 'Policy Recommendations — government | institution | industry | researcher | community',
                 'POST /api/v1/admin/keys/revoke'       => 'Revoke an API key (service calls only)',
             ],
-            'supplied_data'   => 'All ORCID-based endpoints accept "supplied_works" and "supplied_scopus" in request body to skip external API calls when Sangia Sikola already has the data.',
-            'raw_data'        => 'When sangia-apis fetches from external APIs, response includes "raw_data" for Sangia Sikola to persist in its database.',
-            'weight_override' => 'All classify + impact endpoints accept a "weights" object to override scoring weights set in the Sangia Sikola admin panel.',
+            'supplied_data'   => 'All ORCID-based endpoints accept "supplied_works" and "supplied_scopus" in request body to skip external API calls when Sangia Scieco already has the data.',
+            'raw_data'        => 'When sangia-apis fetches from external APIs, response includes "raw_data" for Sangia Scieco to persist in its database.',
+            'weight_override' => 'All classify + impact endpoints accept a "weights" object to override scoring weights set in the Sangia Scieco admin panel.',
             'batch_info'      => 'ORCID-based endpoints support offset + batch_size to avoid timeout.',
-            'auth'            => 'X-API-Key: wz_{user_id}_{timestamp}_{hmac16}',
-            'key_source'      => 'sangia_sikola',
+            'auth'            => 'X-API-Key: sg_{user_id}_{timestamp}_{hmac16}',
+            'key_source'      => 'sangia_scieco',
             'key_path'        => '/profile/api-keys',
         ]);
     }

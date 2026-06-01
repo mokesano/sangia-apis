@@ -2,16 +2,16 @@
 
 Permanently revoke an API key so it can no longer authenticate requests.
 
-**Method:** `POST`  
-**Path:** `/api/v1/admin/keys/revoke`  
-**Auth:** `X-API-Key` required (must be the Sangia Sikola service key)  
+**Method:** `POST`
+**Path:** `/api/v1/admin/keys/revoke`
+**Auth:** `X-API-Key` required (must be the Sangia Scieco service key)
 **Timeout:** default (no heavy processing)
 
 ---
 
 ## Security Note
 
-This endpoint is intended exclusively for server-to-server calls from Sangia Sikola's backend. Never call it from frontend JavaScript. The `X-API-Key` header must contain a valid service-level key issued to the Sangia Sikola backend.
+This endpoint is intended exclusively for server-to-server calls from Sangia Scieco's backend. Never call it from frontend JavaScript. The `X-API-Key` header must contain a valid service-level key issued to the Sangia Scieco backend.
 
 ---
 
@@ -19,13 +19,13 @@ This endpoint is intended exclusively for server-to-server calls from Sangia Sik
 
 ```json
 {
-  "key": "wz_42_1719000000_a3f8e2c1d5b7"
+  "key": "sg_42_1719000000_a3f8e2c1d5b7"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `key` | string | Yes | The full API key to revoke (format: `wz_{user_id}_{timestamp}_{hmac16}`) |
+| `key` | string | Yes | The full API key to revoke (format: `sg_{user_id}_{timestamp}_{hmac16}`) |
 
 ---
 
@@ -55,16 +55,16 @@ Revoked keys are appended to `writable/revoked_keys.txt` on the sangia-apis serv
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. User-Initiated Revocation
 
-When a user revokes their own key from the Sangia Sikola profile page:
+When a user revokes their own key from the Sangia Scieco profile page:
 
 ```php
 class ApiKeyService
 {
-    private string $serviceKey; // the Sangia Sikola service-level API key
+    private string $serviceKey; // the Sangia Scieco service-level API key
 
     public function __construct()
     {
@@ -87,7 +87,7 @@ class ApiKeyService
 
 ### 2. Admin-Initiated Revocation
 
-When an admin revokes a user's key from the Sangia Sikola admin panel:
+When an admin revokes a user's key from the Sangia Scieco admin panel:
 
 ```php
 public function revokeUserKey(User $user): void
@@ -127,17 +127,17 @@ class UserObserver
 
 ```
 User registers
-    → Sangia Sikola calls ApiKeyMiddleware::generateKey()
+    → Sangia Scieco calls ApiKeyMiddleware::generateKey()
     → Key stored in users.api_key
     → Key displayed once to user
 
 User loses key / security concern
     → User clicks "Revoke" or Admin suspends account
-    → Sangia Sikola calls POST /api/v1/admin/keys/revoke
+    → Sangia Scieco calls POST /api/v1/admin/keys/revoke
     → Key added to revoked_keys.txt on sangia-apis
     → users.api_key set to NULL
 
 User requests new key
-    → Sangia Sikola generates new key
+    → Sangia Scieco generates new key
     → Stored and displayed to user
 ```

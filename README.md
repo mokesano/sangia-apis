@@ -32,7 +32,7 @@
 
 ## 📖 Tentang
 
-**Sangia APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Sangia Publishing**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Sangia Sikola** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
+**Sangia APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Sangia Publishing**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Sangia Scieco** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
 
 > **Base URL**: `https://api.sangia.org`  
 > **Versi API**: `v1`  
@@ -84,7 +84,7 @@ curl https://api.sangia.org/api/v1
 
 # Klasifikasi SDG (butuh API key)
 curl -X POST https://api.sangia.org/api/v1/sdg/v5/classify \
-  -H "X-API-Key: wz_42_1719000000_a3f8e2c1d5b7" \
+  -H "X-API-Key: sg_42_1719000000_a3f8e2c1d5b7" \
   -H "Content-Type: application/json" \
   -d '{"title": "Solar Panel Adoption in Rural Java", "abstract": "..."}'
 ```
@@ -118,22 +118,22 @@ curl -X POST https://api.sangia.org/api/v1/sdg/v5/classify \
 Gunakan **HMAC‑SHA256 stateless** — tidak ada session server.
 
 ```
-Format: wz_{user_id}_{unix_timestamp}_{hmac16}
-Contoh: wz_42_1719000000_a3f8e2c1d5b7
+Format: sg_{user_id}_{unix_timestamp}_{hmac16}
+Contoh: sg_42_1719000000_a3f8e2c1d5b7
 ```
 
 | Parameter | Deskripsi |
 | :--- | :--- |
-| `user_id` | ID pengguna dari Sangia Sikola |
+| `user_id` | ID pengguna dari Sangia Scieco |
 | `unix_timestamp` | Timestamp saat key dibuat |
 | `hmac16` | 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, SANGIA_SHARED_SECRET)` |
 | **TTL** | 1 tahun sejak `timestamp` |
 
 **Kirim key melalui:**
-- Header: `X-API-Key: wz_...`
-- Header: `Authorization: Bearer wz_...`
-- Query: `?api_key=wz_...`
+- Header: `X-API-Key: sg_...`
+- Header: `Authorization: Bearer sg_...`
 
+> 🔐 Query string `?api_key=...` dinonaktifkan secara default agar API key tidak bocor di log URL.
 > ⚠️ **Rate Limit**: 60 request/60 detik per API key (dapat dikonfigurasi via `.env`).
 
 ---
@@ -156,7 +156,7 @@ Contoh: wz_42_1719000000_a3f8e2c1d5b7
 
 ## 🔄 Pola `supplied_data`
 
-Jika **Sangia Sikola** sudah memiliki data di database, kirimkan dalam request body. Engine akan menggunakan data tersebut **tanpa melakukan HTTP request ke API eksternal**, sehingga lebih cepat dan hemat *rate limit*.
+Jika **Sangia Scieco** sudah memiliki data di database, kirimkan dalam request body. Engine akan menggunakan data tersebut **tanpa melakukan HTTP request ke API eksternal**, sehingga lebih cepat dan hemat *rate limit*.
 
 ```json
 {

@@ -11,9 +11,9 @@ Generate evidence-based policy recommendations for five stakeholder types, based
 
 ## Overview
 
-This endpoint returns **language-agnostic structured data** — all recommendation content is represented as stable keys (`id`, `activity_keys`, `category`). Sangia Sikola is responsible for translating these keys into user-facing text via its own i18n system.
+This endpoint returns **language-agnostic structured data** — all recommendation content is represented as stable keys (`id`, `activity_keys`, `category`). Sangia Scieco is responsible for translating these keys into user-facing text via its own i18n system.
 
-Each recommendation item uses its `id` (e.g. `GOV-01`) as the primary translation key. Activity keys (e.g. `modernize_research_labs`) map to localized text in Sangia Sikola's translation files.
+Each recommendation item uses its `id` (e.g. `GOV-01`) as the primary translation key. Activity keys (e.g. `modernize_research_labs`) map to localized text in Sangia Scieco's translation files.
 
 ---
 
@@ -60,7 +60,7 @@ Each recommendation item uses its `id` (e.g. `GOV-01`) as the primary translatio
 | `domain` | string | No | `general` | Policy focus area — `general`, `sdg_achievement`, `research_funding`, `innovation` |
 | `time_horizon` | string | No | `medium` | Planning horizon — `short`, `medium`, `long` |
 | `region` | string | No | `""` | Geographic context (returned as-is, no effect on logic) |
-| `research_landscape` | object | No | `{}` | Aggregated stats from Sangia Sikola DB — enables data-driven recommendations |
+| `research_landscape` | object | No | `{}` | Aggregated stats from Sangia Scieco DB — enables data-driven recommendations |
 | `research_landscape.weak_sdgs` | array | No | `["SDG14","SDG15"]` | SDGs with lowest research coverage — used in GOV-04 |
 | `research_landscape.strong_sdgs` | array | No | `["SDG3","SDG4","SDG9"]` | SDGs with strongest research coverage |
 | `research_landscape.total_researchers` | int | No | `0` | Total researcher count in the dataset |
@@ -181,9 +181,9 @@ A subset of activity keys and their intended meaning (for building i18n translat
 | `strengthen_technology_transfer_office` | GOV-03 — TTO improvement |
 | `dedicated_sdg_research_funding` | GOV-04 — SDG-targeted grants |
 | `identify_sdg_aligned_partners` | INST-01 — Partner identification |
-| `integrate_sangia_sikola_tracking` | INST-03 — Use Sangia Sikola |
+| `integrate_sangia_scieco_tracking` | INST-03 — Use Sangia Scieco |
 | `sync_orcid_scopus_sinta` | RES-01 — Profile synchronization |
-| `sangia_sikola_impact_monitoring` | RES-01 — Use impact dashboard |
+| `sangia_scieco_impact_monitoring` | RES-01 — Use impact dashboard |
 | `national_open_access_repository` | COM-01 — Open access |
 
 ---
@@ -196,11 +196,11 @@ A subset of activity keys and their intended meaning (for building i18n translat
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. Building the i18n Translation Map
 
-Since the API returns keys, Sangia Sikola must maintain a translation file. Example structure:
+Since the API returns keys, Sangia Scieco must maintain a translation file. Example structure:
 
 ```php
 // resources/lang/id/recommendations.php
@@ -268,7 +268,7 @@ class RecommendationRenderer
 
 ### 3. Build Research Landscape from DB
 
-Aggregate the `research_landscape` from Sangia Sikola's analytics tables before calling the API:
+Aggregate the `research_landscape` from Sangia Scieco's analytics tables before calling the API:
 
 ```php
 public function buildResearchLandscape(): array
@@ -290,7 +290,7 @@ public function buildResearchLandscape(): array
 
 ### 4. Stakeholder Context
 
-Each stakeholder type maps to a different Sangia Sikola UI section:
+Each stakeholder type maps to a different Sangia Scieco UI section:
 
 | Stakeholder | Where it appears |
 |-------------|-----------------|

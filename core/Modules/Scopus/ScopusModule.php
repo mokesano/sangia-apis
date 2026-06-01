@@ -6,9 +6,9 @@ namespace Sangia\Core\Modules\Scopus;
 /**
  * Scopus Module — fetches author profile and publications.
  *
- * No result caching here. Sangia Sikola owns all persistence:
+ * No result caching here. Sangia Scieco owns all persistence:
  *   - pass $suppliedData to skip the Scopus cURL call entirely
- *   - response always includes 'raw_data' so Sangia Sikola can save it to DB
+ *   - response always includes 'raw_data' so Sangia Scieco can save it to DB
  */
 class ScopusModule
 {
@@ -27,8 +27,8 @@ class ScopusModule
     /**
      * @param string     $authorId      Scopus Author ID
      * @param int        $count         Max publications to return
-     * @param bool       $refresh       Force re-fetch even if Sangia Sikola supplied data
-     * @param array|null $suppliedData  Author data already in Sangia Sikola DB — skips cURL
+     * @param bool       $refresh       Force re-fetch even if Sangia Scieco supplied data
+     * @param array|null $suppliedData  Author data already in Sangia Scieco DB — skips cURL
      */
     public function getAuthor(
         string $authorId,
@@ -43,10 +43,10 @@ class ScopusModule
             return $this->error(400, 'authorid is required');
         }
 
-        // Use supplied data from Sangia Sikola DB (no external call needed)
+        // Use supplied data from Sangia Scieco DB (no external call needed)
         if (!$refresh && $suppliedData !== null) {
             return array_merge($suppliedData, [
-                'data_source' => 'sangia_sikola_db',
+                'data_source' => 'sangia_scieco_db',
                 'cache_info'  => ['from_cache' => true],
             ]);
         }
@@ -70,7 +70,7 @@ class ScopusModule
             'api_version'  => 'v6.0-modular',
             'data_source'  => $author['data_source'] ?? 'scopus',
             'cache_info'   => ['from_cache' => false],
-            // Sangia Sikola should save these fields to its DB
+            // Sangia Scieco should save these fields to its DB
             'raw_data'     => [
                 'author'       => $author,
                 'publications' => $publications,

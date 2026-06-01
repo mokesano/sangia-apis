@@ -22,13 +22,15 @@ class AdminController extends BaseController
             Response::json(['status' => 'error', 'message' => 'key is required'], 400);
         }
 
-        $hash   = hash('sha256', $key);
-        $parts  = explode('_', $key, 4);
-        $userId = $parts[1] ?? 'unknown';
+        if (!ApiKeyMiddleware::isWellFormed($key)) {
+            Response::json(['status' => 'error', 'message' => 'key format is invalid'], 400);
+        }
+
+        $hash = hash('sha256', $key);
 
         $pdo = Connection::get();
         if ($pdo !== null) {
-            // Try updating existing row first (row created by sangia-sikola on key generation)
+            // Try updating existing row first (row created by sangia-scieco on key generation)
             $stmt = $pdo->prepare('UPDATE api_keys SET is_active = 0 WHERE key_hash = ?');
             $stmt->execute([$hash]);
             if ($stmt->rowCount() === 0) {

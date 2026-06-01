@@ -66,10 +66,13 @@ class CacheService
      */
     private function getFilename(string $type, string $id): string
     {
-        // Gunakan hash agar panjang file seragam dan aman
-        $uniqueCode = substr(md5($id . '_v4'), 0, 8); 
-        $safeId = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '_', $id);
-        
-        return $this->cacheDir . '/' . $type . '_' . $safeId . '_' . $uniqueCode . '.json.gz';
+        // Keep untrusted cache keys out of filesystem paths. The module/type/id
+        // values can originate from API parameters, so use a strict type label and
+        // a fixed-length digest instead of embedding raw identifiers in filenames.
+        $safeType = preg_replace('/[^A-Za-z0-9_-]/', '_', $type) ?: 'item';
+        $safeType = substr($safeType, 0, 40);
+        $digest = hash('sha256', $type . ':' . $id);
+
+        return $this->cacheDir . '/' . $safeType . '_' . $digest . '.json.gz';
     }
 }

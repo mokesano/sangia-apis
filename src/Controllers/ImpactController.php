@@ -23,7 +23,7 @@ class ImpactController extends BaseController
         $batch    = max(1, min(50, (int) ($body['batch_size'] ?? $_GET['batch_size'] ?? 20)));
         $weights  = $body['weights']          ?? [];
 
-        // Sangia Sikola supplies pre-fetched data from its DB to avoid redundant cURL
+        // Sangia Scieco supplies pre-fetched data from its DB to avoid redundant cURL
         $suppliedWorks  = $body['supplied_works']                         ?? [];
         $suppliedPerson = isset($body['supplied_person']) ? $body['supplied_person'] : null;
         $suppliedScopus = isset($body['supplied_scopus']) ? $body['supplied_scopus'] : null;
