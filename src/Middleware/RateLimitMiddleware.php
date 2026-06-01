@@ -5,7 +5,7 @@ namespace Sangia\Api\Middleware;
 
 use PDO;
 use Sangia\Api\Config\Config;
-use Sangia\Database\Connection;
+use Sangia\Api\Database\Connection;
 use Sangia\Gateway\ApiKeyMiddleware;
 
 /**
@@ -82,7 +82,7 @@ class RateLimitMiddleware
     private static function checkFile(string $userId, int $maxRequests, int $windowSecs): void
     {
         $dir  = self::STORE_DIR;
-        $file = $dir . '/' . md5($userId) . '.json';
+        $file = $dir . '/' . hash('sha256', $userId) . '.json';
         @mkdir($dir, 0755, true);
 
         $now  = time();

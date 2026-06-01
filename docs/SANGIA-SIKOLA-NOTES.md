@@ -23,7 +23,7 @@ $key    = ApiKeyMiddleware::generateKey($userId, $secret);
 // Panggil endpoint admin sangia-apis
 POST /api/v1/admin/keys/revoke
 X-API-Key: {service_key_sangia_sikola}
-{ "key": "wz_42_1719000000_a3f8e2c1d5b7" }
+{ "key": "sg_42_1719000000_a3f8e2c1d5b7" }
 ```
 
 **Penting:** Simpan `SANGIA_SHARED_SECRET` yang **identik** di `.env` kedua sistem.

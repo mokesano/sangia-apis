@@ -2,7 +2,7 @@
 
 **Base URL:** `https://api.sangia.org`  
 **Versi API:** v1  
-**Autentikasi:** `X-API-Key: wz_{user_id}_{timestamp}_{hmac16}`
+**Autentikasi:** `X-API-Key: sg_{user_id}_{timestamp}_{hmac16}`
 
 > API key dihasilkan oleh **Sangia Sikola** dan divalidasi secara stateless menggunakan HMAC-SHA256.  
 > Semua endpoint wajib menyertakan API key kecuali yang ditandai _(publik)_.
@@ -41,16 +41,16 @@ Setiap endpoint memiliki dokumentasi terpisah di [`docs/endpoints/`](endpoints/)
 
 ## Autentikasi
 
-Kirim API key melalui salah satu cara:
+Kirim API key melalui salah satu header berikut:
 ```
-X-API-Key: wz_42_1719000000_a3f8e2c1d5b7
-Authorization: Bearer wz_42_1719000000_a3f8e2c1d5b7
-?api_key=wz_42_1719000000_a3f8e2c1d5b7
+X-API-Key: sg_42_1719000000_a3f8e2c1d5b7
+Authorization: Bearer sg_42_1719000000_a3f8e2c1d5b7
 ```
 
-**Format key:** `wz_{user_id}_{unix_timestamp}_{hmac16}`  
+**Format key:** `sg_{user_id}_{unix_timestamp}_{hmac16}`
 - `hmac16` = 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, SANGIA_SHARED_SECRET)`  
 - TTL: 1 tahun sejak `timestamp`
+- Query string `?api_key=...` dinonaktifkan secara default untuk mengurangi risiko kebocoran key di log URL; aktifkan hanya jika benar-benar perlu melalui `SANGIA_ALLOW_QUERY_API_KEY=true`.
 
 **Response 401 jika key tidak valid:**
 ```json
@@ -647,7 +647,7 @@ Cabut API key (hanya untuk panggilan dari backend Sangia Sikola).
 
 **Request body:**
 ```json
-{ "key": "wz_42_1719000000_a3f8e2c1d5b7" }
+{ "key": "sg_42_1719000000_a3f8e2c1d5b7" }
 ```
 
 **Response:**

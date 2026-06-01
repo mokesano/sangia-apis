@@ -107,7 +107,7 @@ class SdgController extends BaseController
             'raw_data'        => 'When sangia-apis fetches from external APIs, response includes "raw_data" for Sangia Sikola to persist in its database.',
             'weight_override' => 'All classify + impact endpoints accept a "weights" object to override scoring weights set in the Sangia Sikola admin panel.',
             'batch_info'      => 'ORCID-based endpoints support offset + batch_size to avoid timeout.',
-            'auth'            => 'X-API-Key: wz_{user_id}_{timestamp}_{hmac16}',
+            'auth'            => 'X-API-Key: sg_{user_id}_{timestamp}_{hmac16}',
             'key_source'      => 'sangia_sikola',
             'key_path'        => '/profile/api-keys',
         ]);

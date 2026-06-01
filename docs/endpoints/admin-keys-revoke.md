@@ -19,13 +19,13 @@ This endpoint is intended exclusively for server-to-server calls from Sangia Sik
 
 ```json
 {
-  "key": "wz_42_1719000000_a3f8e2c1d5b7"
+  "key": "sg_42_1719000000_a3f8e2c1d5b7"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `key` | string | Yes | The full API key to revoke (format: `wz_{user_id}_{timestamp}_{hmac16}`) |
+| `key` | string | Yes | The full API key to revoke (format: `sg_{user_id}_{timestamp}_{hmac16}`) |
 
 ---
 

@@ -9,7 +9,7 @@ use Sangia\Api\Database\Connection;
  * HMAC-signed API key middleware.
  *
  * Key format:
- *   wz_{user_id}_{issued_ts}_{hmac16}
+ *   sg_{user_id}_{issued_ts}_{hmac16}
  *
  * Any ecosystem app (sangia-sikola, sdg-mapper, sdgs-analytics, sdg-mono) that
  * holds SANGIA_SHARED_SECRET can call generateKey() to mint a valid key.
@@ -21,16 +21,22 @@ use Sangia\Api\Database\Connection;
  */
 class ApiKeyMiddleware
 {
-    private const PREFIX      = 'wz_';
-    private const KEY_TTL     = 31536000; // 1 year in seconds
-    private const REVOKE_FILE = __DIR__ . '/../writable/revoked_keys.txt'; // legacy fallback
+    private const PREFIX             = 'sg_';
+    /** @var list<string> */
+    private const LEGACY_PREFIXES    = ['wz_'];
+    /** @var list<string> */
+    private const ACCEPTED_PREFIXES  = [self::PREFIX, ...self::LEGACY_PREFIXES];
+    private const KEY_TTL            = 31536000; // 1 year in seconds
+    private const FUTURE_SKEW_SECS   = 300; // allow small clock skew only
+    private const MIN_SECRET_LENGTH  = 32;
+    private const REVOKE_FILE        = __DIR__ . '/../writable/revoked_keys.txt'; // legacy fallback
 
     public static function validate(): void
     {
         $key = self::extractKey();
 
         if ($key === null) {
-            self::reject('API key missing. Include X-API-Key header or ?api_key= parameter.');
+            self::reject('API key missing. Include X-API-Key or Authorization: Bearer header.');
         }
 
         if (!self::isValid($key)) {
@@ -47,48 +53,83 @@ class ApiKeyMiddleware
     {
         $key = self::extractKey();
         if ($key === null || !self::isValid($key)) return null;
-        $parts = explode('_', $key, 4);
-        return $parts[1] ?? null;
+        return self::parseKey($key)['user_id'] ?? null;
+    }
+
+    /** Returns true when a key uses a supported prefix and field shape. */
+    public static function isWellFormed(string $key): bool
+    {
+        return self::parseKey($key) !== null;
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
     private static function extractKey(): ?string
     {
-        // Header takes precedence over query param
-        $key = $_SERVER['HTTP_X_API_KEY']
-            ?? $_SERVER['HTTP_AUTHORIZATION']  // "Bearer wz_..."
-            ?? $_GET['api_key']
-            ?? null;
+        // Header takes precedence. Query-string API keys are disabled by default
+        // because URLs are commonly logged by proxies, analytics, and browsers.
+        $key = $_SERVER['HTTP_X_API_KEY'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? null;
 
-        if ($key === null) return null;
-
-        // Strip "Bearer " prefix if present
-        if (str_starts_with($key, 'Bearer ')) {
-            $key = substr($key, 7);
+        if ($key === null && self::allowQueryApiKey()) {
+            $key = $_GET['api_key'] ?? null;
         }
 
-        return str_starts_with($key, self::PREFIX) ? $key : null;
+        if (!is_string($key) || $key === '') return null;
+
+        $key = trim($key);
+
+        // Strip "Bearer " prefix if present (case-insensitive).
+        if (preg_match('/^Bearer\s+(.+)$/i', $key, $matches) === 1) {
+            $key = trim($matches[1]);
+        }
+
+        foreach (self::ACCEPTED_PREFIXES as $prefix) {
+            if (str_starts_with($key, $prefix)) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     private static function isValid(string $key): bool
     {
-        // wz_{user_id}_{issued_ts}_{hmac16}
-        $parts = explode('_', $key, 4);
-        if (count($parts) !== 4 || $parts[0] !== 'wz') return false;
+        $parsed = self::parseKey($key);
+        if ($parsed === null) return false;
 
-        [, $userId, $issuedTs, $hmacPart] = $parts;
+        $issuedAt = (int) $parsed['issued_ts'];
+        $now      = time();
 
-        if (!ctype_digit($issuedTs)) return false;
-        if (time() - (int) $issuedTs > self::KEY_TTL) return false;
+        if ($issuedAt > $now + self::FUTURE_SKEW_SECS) return false;
+        if ($now - $issuedAt > self::KEY_TTL) return false;
 
-        $secret   = self::secret();
         $expected = substr(
-            hash_hmac('sha256', $userId . ':' . $issuedTs, $secret),
-            0, 16
+            hash_hmac('sha256', $parsed['user_id'] . ':' . $parsed['issued_ts'], self::secret()),
+            0,
+            16
         );
 
-        return hash_equals($expected, $hmacPart);
+        return hash_equals($expected, $parsed['hmac']);
+    }
+
+    /** @return array{prefix:string,user_id:string,issued_ts:string,hmac:string}|null */
+    private static function parseKey(string $key): ?array
+    {
+        if (preg_match('/^(sg|wz)_([A-Za-z0-9@.:-]{1,128})_([0-9]{10})_([a-f0-9]{16})$/', $key, $matches) !== 1) {
+            return null;
+        }
+
+        $prefix = $matches[1] . '_';
+        if (!in_array($prefix, self::ACCEPTED_PREFIXES, true)) {
+            return null;
+        }
+
+        return [
+            'prefix'    => $prefix,
+            'user_id'   => $matches[2],
+            'issued_ts' => $matches[3],
+            'hmac'      => $matches[4],
+        ];
     }
 
     private static function isRevoked(string $key): bool
@@ -114,13 +155,18 @@ class ApiKeyMiddleware
     private static function secret(): string
     {
         $secret = $_ENV['SANGIA_SHARED_SECRET'] ?? getenv('SANGIA_SHARED_SECRET') ?: null;
-        if (!$secret) {
+        if (!is_string($secret) || strlen($secret) < self::MIN_SECRET_LENGTH) {
             http_response_code(500);
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode(['status' => 'error', 'code' => 500, 'message' => 'Server misconfiguration.']);
             exit;
         }
         return $secret;
+    }
+
+    private static function allowQueryApiKey(): bool
+    {
+        return filter_var($_ENV['SANGIA_ALLOW_QUERY_API_KEY'] ?? getenv('SANGIA_ALLOW_QUERY_API_KEY') ?: false, FILTER_VALIDATE_BOOLEAN);
     }
 
     private static function reject(string $message): never
@@ -141,9 +187,9 @@ class ApiKeyMiddleware
      * Generates a signed API key for a given user_id.
      * Any app that holds SANGIA_SHARED_SECRET can call this to mint a valid key.
      * Equivalent formula for non-PHP apps:
-     *   prefix = "wz_"
+     *   prefix = "sg_"
      *   hmac16 = HMAC-SHA256(userId + ":" + timestamp, SANGIA_SHARED_SECRET)[0..15]
-     *   key    = "wz_" + userId + "_" + timestamp + "_" + hmac16
+     *   key    = "sg_" + userId + "_" + timestamp + "_" + hmac16
      *
      * @param string $userId   User identifier (e.g. "42" or "user@email.com")
      * @param string $secret   The SANGIA_SHARED_SECRET (identical across all ecosystem apps)
@@ -151,6 +197,14 @@ class ApiKeyMiddleware
      */
     public static function generateKey(string $userId, string $secret): string
     {
+        if (!preg_match('/^[A-Za-z0-9@.:-]{1,128}$/', $userId)) {
+            throw new \InvalidArgumentException('userId contains unsupported characters.');
+        }
+
+        if (strlen($secret) < self::MIN_SECRET_LENGTH) {
+            throw new \InvalidArgumentException('SANGIA_SHARED_SECRET must be at least 32 characters.');
+        }
+
         $ts   = (string) time();
         $hmac = substr(hash_hmac('sha256', $userId . ':' . $ts, $secret), 0, 16);
         return self::PREFIX . $userId . '_' . $ts . '_' . $hmac;

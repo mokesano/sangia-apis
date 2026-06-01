@@ -22,9 +22,11 @@ class AdminController extends BaseController
             Response::json(['status' => 'error', 'message' => 'key is required'], 400);
         }
 
-        $hash   = hash('sha256', $key);
-        $parts  = explode('_', $key, 4);
-        $userId = $parts[1] ?? 'unknown';
+        if (!ApiKeyMiddleware::isWellFormed($key)) {
+            Response::json(['status' => 'error', 'message' => 'key format is invalid'], 400);
+        }
+
+        $hash = hash('sha256', $key);
 
         $pdo = Connection::get();
         if ($pdo !== null) {

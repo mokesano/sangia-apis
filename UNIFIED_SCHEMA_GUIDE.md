@@ -380,7 +380,7 @@ sangia-apis **tidak peduli** siapa yang membuat key — hanya memverifikasi HMAC
 ### Formula Key (implementasi di semua bahasa)
 
 ```
-key = "wz_" + userId + "_" + timestamp + "_" + HMAC-SHA256(userId+":"+timestamp, SECRET)[0..15]
+key = "sg_" + userId + "_" + timestamp + "_" + HMAC-SHA256(userId+":"+timestamp, SECRET)[0..15]
 ```
 
 ### Generasi Key (dari aplikasi manapun)
@@ -391,7 +391,7 @@ $secret = env('SANGIA_SHARED_SECRET'); // sama di semua app
 $userId = (string) auth()->id();       // atau app-level ID
 $ts     = (string) time();
 $hmac16 = substr(hash_hmac('sha256', $userId . ':' . $ts, $secret), 0, 16);
-$key    = 'wz_' . $userId . '_' . $ts . '_' . $hmac16;
+$key    = 'sg_' . $userId . '_' . $ts . '_' . $hmac16;
 
 // Simpan hash ke shared DB (sangia_ecosystem.api_keys)
 DB::table('api_keys')->insert([
@@ -411,7 +411,7 @@ function generateKey(userId, secret) {
   const hmac  = crypto.createHmac('sha256', secret)
                       .update(userId + ':' + ts).digest('hex')
                       .substring(0, 16);
-  return `wz_${userId}_${ts}_${hmac}`;
+  return `sg_${userId}_${ts}_${hmac}`;
 }
 ```
 
@@ -422,7 +422,7 @@ def generate_key(user_id: str, secret: str) -> str:
     ts    = str(int(time.time()))
     sig   = hmac.new(secret.encode(), f"{user_id}:{ts}".encode(), hashlib.sha256)
     hmac16 = sig.hexdigest()[:16]
-    return f"wz_{user_id}_{ts}_{hmac16}"
+    return f"sg_{user_id}_{ts}_{hmac16}"
 ```
 
 ### Revokasi (dari aplikasi manapun)

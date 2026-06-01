@@ -84,7 +84,7 @@ curl https://api.sangia.org/api/v1
 
 # Klasifikasi SDG (butuh API key)
 curl -X POST https://api.sangia.org/api/v1/sdg/v5/classify \
-  -H "X-API-Key: wz_42_1719000000_a3f8e2c1d5b7" \
+  -H "X-API-Key: sg_42_1719000000_a3f8e2c1d5b7" \
   -H "Content-Type: application/json" \
   -d '{"title": "Solar Panel Adoption in Rural Java", "abstract": "..."}'
 ```
@@ -118,8 +118,8 @@ curl -X POST https://api.sangia.org/api/v1/sdg/v5/classify \
 Gunakan **HMAC‑SHA256 stateless** — tidak ada session server.
 
 ```
-Format: wz_{user_id}_{unix_timestamp}_{hmac16}
-Contoh: wz_42_1719000000_a3f8e2c1d5b7
+Format: sg_{user_id}_{unix_timestamp}_{hmac16}
+Contoh: sg_42_1719000000_a3f8e2c1d5b7
 ```
 
 | Parameter | Deskripsi |
@@ -130,10 +130,10 @@ Contoh: wz_42_1719000000_a3f8e2c1d5b7
 | **TTL** | 1 tahun sejak `timestamp` |
 
 **Kirim key melalui:**
-- Header: `X-API-Key: wz_...`
-- Header: `Authorization: Bearer wz_...`
-- Query: `?api_key=wz_...`
+- Header: `X-API-Key: sg_...`
+- Header: `Authorization: Bearer sg_...`
 
+> 🔐 Query string `?api_key=...` dinonaktifkan secara default agar API key tidak bocor di log URL.
 > ⚠️ **Rate Limit**: 60 request/60 detik per API key (dapat dikonfigurasi via `.env`).
 
 ---
