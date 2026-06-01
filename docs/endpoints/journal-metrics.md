@@ -86,7 +86,7 @@ Retrieve journal impact metrics from the Scopus Serial Title API (CiteScore, SJR
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. Journal Profile Page
 

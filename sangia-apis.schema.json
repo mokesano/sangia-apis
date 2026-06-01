@@ -3,7 +3,7 @@
   "$id": "https://api.sangia.org/v1/schema/sangia-apis.schema.json",
   "title": "Sangia APIs Response Contract",
   "version": "1.0.0",
-  "description": "Shared JSON Schema antara sangia-apis, sangia-sikola, dan sdgs-mapper. Perubahan di sini harus diikuti oleh semua consumer.",
+  "description": "Shared JSON Schema antara sangia-apis, sangia-scieco, dan sciecola. Perubahan di sini harus diikuti oleh semua consumer.",
 
   "definitions": {
 

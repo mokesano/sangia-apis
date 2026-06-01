@@ -4,11 +4,11 @@ Panduan unified database dan API untuk keempat repository yang terintegrasi dala
 
 | Repository | Domain | Fungsi | Tech Stack |
 |---|---|---|---|
-| `sdgs-mapper` | sangia.org | Research knowledge base + SDG mapping UI | React + PHP backend |
+| `sciecola` | sangia.org | Research knowledge base + SDG mapping UI | React + PHP backend |
 | `sangia-apis` | api.sangia.org | Stateless analysis API (multi-source citations, impact scoring, trends, recommendations) | PHP REST |
-| `SDGs-analytics` | sangia.org/analytics | Analytics dashboard & reporting | React / Chart library |
-| `sangia-sikola` | stipwunaraha.ac.id | Academic profile platform (OJS-based) | OJS + PHP |
-| `sdg-mono` | Legacy monolith | Consolidated legacy system | PHP/Mixed |
+| `sangia-analytics` | sangia.org/analytics | Analytics dashboard & reporting | React / Chart library |
+| `sangia-scieco` | stipwunaraha.ac.id | Academic profile platform (OJS-based) | OJS + PHP |
+| `sangia-mono` | Legacy monolith | Consolidated legacy system | PHP/Mixed |
 
 **Koneksi data center**: Semua aplikasi menggunakan **satu database terpusat** `sangia_ecosystem` dan **satu API layer** `sangia-apis` untuk analisis data.
 
@@ -20,11 +20,11 @@ Panduan unified database dan API untuk keempat repository yang terintegrasi dala
 ┌─────────────────────────────────────────────────────┐
 │  Frontend Layer (React/UI)                          │
 ├──────────────────────┬──────────────────────────────┤
-│  sdgs-mapper          │  SDGs-analytics              │
+│  sciecola          │  sangia-analytics              │
 │  (researcher mapping) │  (dashboard)                 │
 │  React + Material-UI  │  React + Chart.js            │
 │                       │                              │
-│  sangia-sikola        │  sdg-mono                    │
+│  sangia-scieco        │  sangia-mono                    │
 │  (OJS web UI)         │  (legacy monolith)           │
 │  OJS core            │  PHP/Mixed                    │
 └─────────┬──────────────┬────────────────────────────┘
@@ -66,7 +66,7 @@ Panduan unified database dan API untuk keempat repository yang terintegrasi dala
 ### sangia-apis (Stateless Analysis Engine)
 
 ```
-Frontend (React/OJS) 
+Frontend (React/OJS)
     ↓ HTTP POST/GET (with API Key)
 sangia-apis (API)
     ↓ fetches from external APIs (if not supplied)
@@ -104,7 +104,7 @@ SQL
 ### 2. Jalankan schema
 
 ```bash
-# Dari sdgs-mapper (canonical schema owner):
+# Dari sciecola (canonical schema owner):
 mysql -u root -p sangia_ecosystem < db/schema.sql
 ```
 
@@ -176,7 +176,7 @@ RATE_LIMIT_WINDOW=60
 
 ## Cara Setiap Aplikasi Menggunakan sangia-apis
 
-### 1️⃣ sdgs-mapper (React + PHP Backend)
+### 1️⃣ sciecola (React + PHP Backend)
 
 #### React Frontend → sangia-apis
 
@@ -237,10 +237,10 @@ export function ResearcherProfile({ orcid }) {
 }
 ```
 
-#### PHP Backend (sdgs-mapper) → sangia_ecosystem DB (Persist hasil)
+#### PHP Backend (sciecola) → sangia_ecosystem DB (Persist hasil)
 
 ```php
-// sdgs-mapper/app/Http/Controllers/ResearcherController.php
+// sciecola/app/Http/Controllers/ResearcherController.php
 public function upsertFromOrcid(string $orcid) {
   // Step 1: Call sangia-apis untuk fetch fresh data
   $profile = Http::withHeaders([
@@ -251,7 +251,7 @@ public function upsertFromOrcid(string $orcid) {
   // Step 2: Extract Scopus Author ID dari ORCID profile
   $scopusAuthorId = $profile['person_summary']['scopus_author_id'] ?? null;
 
-  // Step 3: Simpan ke DB (pemilik: sdgs-mapper)
+  // Step 3: Simpan ke DB (pemilik: sciecola)
   Researcher::updateOrCreate(['orcid' => $orcid], [
     'name' => $profile['person_summary']['name'],
     'scopus_id' => $scopusAuthorId,
@@ -265,10 +265,10 @@ public function upsertFromOrcid(string $orcid) {
 
 ---
 
-### 2️⃣ sangia-sikola (Platform SDGs Analytics) → sangia-apis
+### 2️⃣ sangia-scieco (Platform Sangia Analytics) → sangia-apis
 
 ```php
-// sangia-sikola/app/Services/ImpactService.php
+// sangia-scieco/app/Services/ImpactService.php
 public function calculateResearcherImpact(User $user): array {
   $response = Http::withHeaders([
     'X-API-Key' => config('services.sangia_api.service_key')
@@ -286,7 +286,7 @@ public function calculateResearcherImpact(User $user): array {
 
   if ($response->ok()) {
     $result = $response->json();
-    
+
     // Cache result locally
     UserAnalysis::updateOrCreate(
       ['user_id' => $user->id, 'analysis_type' => 'impact'],
@@ -302,10 +302,10 @@ public function calculateResearcherImpact(User $user): array {
 
 ---
 
-### 3️⃣ SDGs-analytics (React Dashboard) → sangia-apis (read-only)
+### 3️⃣ sangia-analytics (React Dashboard) → sangia-apis (read-only)
 
 ```javascript
-// SDGs-analytics/src/pages/Dashboard.jsx
+// sangia-analytics/src/pages/Dashboard.jsx
 import { LineChart, Line, XAxis, YAxis } from 'recharts';
 
 export function TrendDashboard() {
@@ -342,10 +342,10 @@ export function TrendDashboard() {
 
 ---
 
-### 4️⃣ sdg-mono (Legacy) → sangia-apis
+### 4️⃣ sangia-mono (Legacy) → sangia-apis
 
 ```php
-// sdg-mono/app/api/researcher.php
+// sangia-mono/app/api/researcher.php
 $client = new GuzzleHttp\Client();
 $response = $client->post(
   'https://api.sangia.org/api/v1/impact/calculate',
@@ -369,10 +369,10 @@ echo json_encode($impact);
 
 ```
 sangia-apis         ← validates HMAC
-sangia-sikola       ← can generateKey()
-sdg-mapper          ← can generateKey()
-sdgs-analytics      ← can generateKey()
-sdg-mono            ← can generateKey()
+sangia-scieco       ← can generateKey()
+sciecola          ← can generateKey()
+sangia-analytics      ← can generateKey()
+sangia-mono            ← can generateKey()
 ```
 
 sangia-apis **tidak peduli** siapa yang membuat key — hanya memverifikasi HMAC cocok dengan secret yang sama.
@@ -386,7 +386,7 @@ key = "sg_" + userId + "_" + timestamp + "_" + HMAC-SHA256(userId+":"+timestamp,
 ### Generasi Key (dari aplikasi manapun)
 
 ```php
-// PHP — berlaku untuk sangia-sikola, sdg-mapper, sdgs-analytics, sdg-mono
+// PHP — berlaku untuk sangia-scieco, sciecola, sangia-analytics, sangia-mono
 $secret = env('SANGIA_SHARED_SECRET'); // sama di semua app
 $userId = (string) auth()->id();       // atau app-level ID
 $ts     = (string) time();
@@ -404,7 +404,7 @@ DB::table('api_keys')->insert([
 ```
 
 ```javascript
-// JavaScript / Node.js — untuk sdg-mapper backend
+// JavaScript / Node.js — untuk sciecola backend
 const crypto = require('crypto');
 function generateKey(userId, secret) {
   const ts    = Math.floor(Date.now() / 1000).toString();
@@ -416,7 +416,7 @@ function generateKey(userId, secret) {
 ```
 
 ```python
-# Python — untuk sdg-mono atau analytics
+# Python — untuk sangia-mono atau analytics
 import hmac, hashlib, time
 def generate_key(user_id: str, secret: str) -> str:
     ts    = str(int(time.time()))
@@ -456,9 +456,9 @@ Http::withHeaders(['X-API-Key' => $serviceKey])
 Web Server 1     Web Server 2      Shared MySQL
 (sangia.org)     (stipwunaraha)    (localhost:3306)
                                    sangia_ecosystem
-• sdgs-mapper    • sangia-sikola    • institutions
+• sciecola    • sangia-scieco    • institutions
 • analytics      • Lumera           • researchers
-• sdg-mono       users              • publications
+• sangia-mono       users              • publications
                                     • work_sdgs
                                     • journals
                                     • api_keys
@@ -476,23 +476,23 @@ CREATE USER 'sangia_apis'@'%' IDENTIFIED BY 'api_password';
 GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.api_keys TO 'sangia_apis'@'%';
 GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.api_rate_limits TO 'sangia_apis'@'%';
 
--- sdgs-mapper: Knowledge base writers
+-- sciecola: Knowledge base writers
 CREATE USER 'sangia_mapper'@'%' IDENTIFIED BY 'mapper_password';
 GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.researchers TO 'sangia_mapper'@'%';
 GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publications TO 'sangia_mapper'@'%';
 GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.work_sdgs TO 'sangia_mapper'@'%';
 GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.ecosystem_cache TO 'sangia_mapper'@'%';
 
--- sangia-sikola: Identity + knowledge base writer
-CREATE USER 'sangia_sikola'@'%' IDENTIFIED BY 'sikola_password';
-GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.institutions TO 'sangia_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.researchers TO 'sangia_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publications TO 'sangia_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publication_authors TO 'sangia_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.analytics_snapshots TO 'sangia_sikola'@'%';
-GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.ecosystem_cache TO 'sangia_sikola'@'%';
+-- sangia-scieco: Identity + knowledge base writer
+CREATE USER 'sangia_scieco'@'%' IDENTIFIED BY 'sikola_password';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.institutions TO 'sangia_scieco'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.researchers TO 'sangia_scieco'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publications TO 'sangia_scieco'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.publication_authors TO 'sangia_scieco'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.analytics_snapshots TO 'sangia_scieco'@'%';
+GRANT SELECT, INSERT, UPDATE ON sangia_ecosystem.ecosystem_cache TO 'sangia_scieco'@'%';
 
--- SDGs-analytics: Read-only
+-- sangia-analytics: Read-only
 CREATE USER 'sangia_analytics'@'%' IDENTIFIED BY 'analytics_password';
 GRANT SELECT ON sangia_ecosystem.researchers TO 'sangia_analytics'@'%';
 GRANT SELECT ON sangia_ecosystem.publications TO 'sangia_analytics'@'%';
@@ -506,7 +506,7 @@ FLUSH PRIVILEGES;
 
 ## Checklist Implementasi
 
-### ☐ sdgs-mapper
+### ☐ sciecola
 - [ ] Setup DB credentials
 - [ ] React components call sangia-apis (ORCID, citation, impact)
 - [ ] Persist results to `researchers`, `publications`, `work_sdgs`
@@ -518,25 +518,25 @@ FLUSH PRIVILEGES;
 - [ ] Rate limiting (DB or file)
 - [ ] Deploy to `api.sangia.org`
 
-### ☐ sangia-sikola
+### ☐ sangia-scieco
 - [ ] Setup DB credentials
 - [ ] Call sangia-apis for impact, trends, ORCID profiles
 - [ ] Persist researcher profiles, publications, institution data
 - [ ] Persist analysis results to `analytics_snapshots`
-- [ ] Use least-privilege user: `sangia_sikola` (not `sangia_app`)
+- [ ] Use least-privilege user: `sangia_scieco` (not `sangia_app`)
 
-### ☐ SDGs-analytics
+### ☐ sangia-analytics
 - [ ] Setup DB credentials
 - [ ] React dashboard calls sangia-apis
 - [ ] Read from `analytics_snapshots`
 
-### ☐ sdg-mono
+### ☐ sangia-mono
 - [ ] Update PHP scripts to call sangia-apis
 - [ ] Set API key in `.env`
 
 ---
 
-**Schema version**: v2.0-multi-consumer  
-**Last updated**: 2026-05-15  
-**Canonical authority**: sdgs-mapper/UNIFIED_SCHEMA_GUIDE.md  
+**Schema version**: v2.0-multi-consumer
+**Last updated**: 2026-05-15
+**Canonical authority**: sciecola/UNIFIED_SCHEMA_GUIDE.md
 **API version**: v2.0-multisource

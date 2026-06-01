@@ -1,9 +1,9 @@
 -- sangia-apis — Database Reference
 -- Database: sangia_ecosystem (shared across all Sangia repositories)
--- Canonical schema definition: sdgs-mapper/UNIFIED_SCHEMA_GUIDE.md
+-- Canonical schema definition: sciecola/UNIFIED_SCHEMA_GUIDE.md
 --
 -- sangia-apis is a stateless analysis engine. It does NOT own data.
--- All persistent storage is handled by sangia-sikola and sdgs-mapper.
+-- All persistent storage is handled by sangia-scieco and sciecola.
 --
 -- ── Tables sangia-apis reads from (defined in unified schema) ─────────────────
 --
@@ -21,7 +21,7 @@
 --
 -- ── Optional addition to unified schema ──────────────────────────────────────
 -- If DB-backed rate limiting is preferred over the file-based fallback,
--- propose adding this table to sdgs-mapper/UNIFIED_SCHEMA_GUIDE.md:
+-- propose adding this table to sciecola/UNIFIED_SCHEMA_GUIDE.md:
 
 -- CREATE TABLE IF NOT EXISTS api_rate_limits (
 --     id           BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

@@ -122,7 +122,7 @@ Retrieve citation data for a single article from four independent sources simult
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. Article Detail Page
 

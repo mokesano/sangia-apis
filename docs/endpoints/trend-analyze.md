@@ -68,8 +68,8 @@ Analyze research trends over time for a researcher using four distinct analysis 
 | `time_range` | string | No | `5y` | Time window (see table above) |
 | `scopus_id` | string | No | `null` | Required for `citation_growth` type |
 | `refresh` | bool | No | `false` | Force re-fetch from ORCID/Scopus |
-| `supplied_works` | array | No | `[]` | Works from Sangia Sikola DB — skips ORCID cURL |
-| `supplied_scopus` | object\|null | No | `null` | Scopus data from Sangia Sikola DB |
+| `supplied_works` | array | No | `[]` | Works from Sangia Scieco DB — skips ORCID cURL |
+| `supplied_scopus` | object\|null | No | `null` | Scopus data from Sangia Scieco DB |
 
 ---
 
@@ -83,7 +83,7 @@ Analyze research trends over time for a researcher using four distinct analysis 
   "orcid":         "0000-0002-1234-5678",
   "analysis_type": "impact_trajectory",
   "time_range":    "5y",
-  "data_source":   "sangia_sikola_db",
+  "data_source":   "sangia_scieco_db",
   "yearly_metrics": [
     { "year": 2019, "publications": 8,  "citations": 45,  "cumulative_pubs": 8  },
     { "year": 2020, "publications": 12, "citations": 112, "cumulative_pubs": 20 },
@@ -208,7 +208,7 @@ Analyze research trends over time for a researcher using four distinct analysis 
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. Researcher Trend Dashboard
 

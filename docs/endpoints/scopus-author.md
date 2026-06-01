@@ -22,7 +22,7 @@ Fetch a researcher's author profile and recent publications from the Scopus API 
 
 ## Request Body (optional — supplied data)
 
-Send pre-fetched Scopus data from Sangia Sikola DB to skip the Scopus cURL call:
+Send pre-fetched Scopus data from Sangia Scieco DB to skip the Scopus cURL call:
 
 ```json
 {
@@ -95,7 +95,7 @@ Send pre-fetched Scopus data from Sangia Sikola DB to skip the Scopus cURL call:
 }
 ```
 
-### From Sangia Sikola DB
+### From Sangia Scieco DB
 
 ```json
 {
@@ -103,7 +103,7 @@ Send pre-fetched Scopus data from Sangia Sikola DB to skip the Scopus cURL call:
   "author_id":   "57200000000",
   "author":      { "...": "from supplied_scopus.author" },
   "publications":[ { "...": "from supplied_scopus.publications" } ],
-  "data_source": "sangia_sikola_db",
+  "data_source": "sangia_scieco_db",
   "cache_info":  { "from_cache": false }
 }
 ```
@@ -121,7 +121,7 @@ Send pre-fetched Scopus data from Sangia Sikola DB to skip the Scopus cURL call:
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. Enrich Researcher Profile with Scopus Data
 
@@ -155,7 +155,7 @@ public function enrichWithScopus(string $orcid, string $scopusId): array
 
 ### 2. Link Scopus ID to ORCID
 
-ORCID works often include the Scopus Author ID in `external_ids`. Sangia Sikola should extract and store it:
+ORCID works often include the Scopus Author ID in `external_ids`. Sangia Scieco should extract and store it:
 
 ```php
 $orcidProfile = $this->getOrcidProfile($orcid);
@@ -188,7 +188,7 @@ CREATE TABLE researcher_metrics (
 );
 ```
 
-### 4. Use in Sangia Sikola Dashboard
+### 4. Use in Sangia Scieco Dashboard
 
 The Scopus data powers several UI components:
 - **Researcher card:** h-index badge, citation count, document count

@@ -21,7 +21,7 @@ Fetch a researcher's full profile and works list from the ORCID Public API.
 
 ## Request Body (optional — supplied data)
 
-Send pre-fetched data from Sangia Sikola DB to skip the ORCID cURL call.
+Send pre-fetched data from Sangia Scieco DB to skip the ORCID cURL call.
 
 ```json
 {
@@ -47,7 +47,7 @@ Send pre-fetched data from Sangia Sikola DB to skip the ORCID cURL call.
 }
 ```
 
-When supplied data is provided and `refresh` is `false`, the API returns immediately without any external network call. Response will include `"data_source": "sangia_sikola_db"`.
+When supplied data is provided and `refresh` is `false`, the API returns immediately without any external network call. Response will include `"data_source": "sangia_scieco_db"`.
 
 ---
 
@@ -93,21 +93,21 @@ When supplied data is provided and `refresh` is `false`, the API returns immedia
 }
 ```
 
-### From Sangia Sikola DB (supplied data)
+### From Sangia Scieco DB (supplied data)
 
 ```json
 {
   "status":         "success",
   "orcid":          "0000-0002-1234-5678",
   "works_count":    87,
-  "data_source":    "sangia_sikola_db",
+  "data_source":    "sangia_scieco_db",
   "person_summary": { "...": "from supplied_person" },
   "works":          [ { "...": "from supplied_works" } ],
   "cache_info":     { "from_cache": false }
 }
 ```
 
-Note: `raw_data` is absent when data comes from Sangia Sikola DB (no new data to persist).
+Note: `raw_data` is absent when data comes from Sangia Scieco DB (no new data to persist).
 
 ---
 
@@ -121,7 +121,7 @@ Note: `raw_data` is absent when data comes from Sangia Sikola DB (no new data to
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. Initial Researcher Sync (Registration / Profile Setup)
 
@@ -146,7 +146,7 @@ public function syncResearcherProfile(string $orcid): void
         ]);
     }
 
-    // Populate researcher profile in Sangia Sikola DB
+    // Populate researcher profile in Sangia Scieco DB
     ResearcherProfile::updateOrCreate(['orcid' => $orcid], [
         'name'       => $result['person_summary']['name'],
         'email'      => $result['person_summary']['emails'][0] ?? null,
@@ -202,5 +202,5 @@ CREATE TABLE author_profiles_cache (
 ### 4. Refresh Strategy
 
 - **Automatic:** Run a nightly crawler that calls with `refresh=true` for active researchers
-- **Manual:** Researcher clicks "Sync Profile" button in Sangia Sikola UI
+- **Manual:** Researcher clicks "Sync Profile" button in Sangia Scieco UI
 - **Trigger-based:** Refresh when a new publication is detected via DOI lookup

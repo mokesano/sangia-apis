@@ -14,8 +14,8 @@ Compute the Sangia Impact Score — a composite score across four research impac
 | Pillar | Weight (default) | Data Source |
 |--------|-----------------|-------------|
 | **Academic** | 40% | ORCID works + Scopus author metrics |
-| **Social** | 25% | Sangia Sikola inputs (media, policy, shares, news) |
-| **Economic** | 20% | Sangia Sikola inputs (patents, industry, tech transfer) |
+| **Social** | 25% | Sangia Scieco inputs (media, policy, shares, news) |
+| **Economic** | 20% | Sangia Scieco inputs (patents, industry, tech transfer) |
 | **SDG** | 15% | Computed by SDG classifier on all works |
 
 ---
@@ -92,9 +92,9 @@ SDG       = (coverage_ratio × 0.40 + avg_confidence × 0.60) × 100
 | `refresh` | bool | No | `false` | Force re-fetch from ORCID/Scopus |
 | `offset` | int | No | `0` | Batch start position |
 | `batch_size` | int | No | `20` | Works per batch (max `50`) |
-| `supplied_works` | array | No | `[]` | Pre-fetched works from Sangia Sikola DB |
-| `supplied_person` | object\|null | No | `null` | Pre-fetched ORCID person from Sangia Sikola DB |
-| `supplied_scopus` | object\|null | No | `null` | Pre-fetched Scopus data from Sangia Sikola DB |
+| `supplied_works` | array | No | `[]` | Pre-fetched works from Sangia Scieco DB |
+| `supplied_person` | object\|null | No | `null` | Pre-fetched ORCID person from Sangia Scieco DB |
+| `supplied_scopus` | object\|null | No | `null` | Pre-fetched Scopus data from Sangia Scieco DB |
 
 ---
 
@@ -182,7 +182,7 @@ SDG       = (coverage_ratio × 0.40 + avg_confidence × 0.60) × 100
 
 ---
 
-## Usage in Sangia Sikola
+## Usage in Sangia Scieco
 
 ### 1. Researcher Impact Dashboard
 
@@ -242,7 +242,7 @@ public function calculateImpact(string $orcid, string $scopusId = null): array
 
 ### 2. Social and Economic Data Collection
 
-These inputs are collected from multiple sources within Sangia Sikola:
+These inputs are collected from multiple sources within Sangia Scieco:
 
 ```sql
 CREATE TABLE researcher_impact_inputs (

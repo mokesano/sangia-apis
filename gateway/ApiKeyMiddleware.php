@@ -11,7 +11,7 @@ use Sangia\Api\Database\Connection;
  * Key format:
  *   sg_{user_id}_{issued_ts}_{hmac16}
  *
- * Any ecosystem app (sangia-sikola, sdg-mapper, sdgs-analytics, sdg-mono) that
+ * Any ecosystem app (sangia-scieco, sciecola, sangia-analytics, sangia-mono) that
  * holds SANGIA_SHARED_SECRET can call generateKey() to mint a valid key.
  * sangia-apis validates by recomputing the HMAC — it does not care which app
  * generated the key, only that the HMAC matches the shared secret.

@@ -14,7 +14,7 @@ use Sangia\Core\Modules\SDG\Config\SdgDictionary;
  * Trend Analysis Engine — API #7
  *
  * Analyzes research trends over time for a researcher or institution.
- * Stateless: no result caching. Sangia Sikola owns all persistence.
+ * Stateless: no result caching. Sangia Scieco owns all persistence.
  *
  * Supported analysis types:
  *   impact_trajectory    — publication & citation growth over time
@@ -22,7 +22,7 @@ use Sangia\Core\Modules\SDG\Config\SdgDictionary;
  *   collaboration_network — co-authorship patterns
  *   citation_growth      — citation accumulation by year
  *
- * Pass $suppliedWorks (with publication_year) from Sangia Sikola DB to skip ORCID cURL.
+ * Pass $suppliedWorks (with publication_year) from Sangia Scieco DB to skip ORCID cURL.
  */
 class TrendAnalysisEngine
 {
@@ -45,9 +45,9 @@ class TrendAnalysisEngine
      * @param string      $orcid          ORCID iD
      * @param string      $analysisType   One of the supported analysis types
      * @param string      $timeRange      e.g. '5y', '3y', '10y'
-     * @param array       $suppliedWorks  Works from Sangia Sikola DB — skips ORCID cURL
+     * @param array       $suppliedWorks  Works from Sangia Scieco DB — skips ORCID cURL
      * @param string|null $scopusId       Scopus Author ID for citation data
-     * @param array|null  $suppliedScopus Scopus data from Sangia Sikola DB
+     * @param array|null  $suppliedScopus Scopus data from Sangia Scieco DB
      * @param bool        $refresh        Force re-fetch from external APIs
      */
     public function analyze(
@@ -66,7 +66,7 @@ class TrendAnalysisEngine
 
         // Resolve works
         $works      = [];
-        $dataSource = 'sangia_sikola_db';
+        $dataSource = 'sangia_scieco_db';
         $rawData    = null;
 
         if (!$refresh && !empty($suppliedWorks)) {

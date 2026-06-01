@@ -30,7 +30,7 @@ class AdminController extends BaseController
 
         $pdo = Connection::get();
         if ($pdo !== null) {
-            // Try updating existing row first (row created by sangia-sikola on key generation)
+            // Try updating existing row first (row created by sangia-scieco on key generation)
             $stmt = $pdo->prepare('UPDATE api_keys SET is_active = 0 WHERE key_hash = ?');
             $stmt->execute([$hash]);
             if ($stmt->rowCount() === 0) {

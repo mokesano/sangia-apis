@@ -32,7 +32,7 @@
 
 ## 📖 Tentang
 
-**Sangia APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Sangia Publishing**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Sangia Sikola** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
+**Sangia APIs** adalah *pure analysis engine* yang menjadi jantung komputasi ekosistem **Sangia Publishing**. Berbeda dari aplikasi monolitik, engine ini **tidak menyimpan data apapun** — semua analisis dilakukan secara *on‑the‑fly* berdasarkan data yang dikirim oleh **Sangia Scieco** (frontend). Hasilnya: arsitektur yang ringan, mudah di-scale, dan bebas *caching artifact*.
 
 > **Base URL**: `https://api.sangia.org`  
 > **Versi API**: `v1`  
@@ -124,7 +124,7 @@ Contoh: sg_42_1719000000_a3f8e2c1d5b7
 
 | Parameter | Deskripsi |
 | :--- | :--- |
-| `user_id` | ID pengguna dari Sangia Sikola |
+| `user_id` | ID pengguna dari Sangia Scieco |
 | `unix_timestamp` | Timestamp saat key dibuat |
 | `hmac16` | 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, SANGIA_SHARED_SECRET)` |
 | **TTL** | 1 tahun sejak `timestamp` |
@@ -156,7 +156,7 @@ Contoh: sg_42_1719000000_a3f8e2c1d5b7
 
 ## 🔄 Pola `supplied_data`
 
-Jika **Sangia Sikola** sudah memiliki data di database, kirimkan dalam request body. Engine akan menggunakan data tersebut **tanpa melakukan HTTP request ke API eksternal**, sehingga lebih cepat dan hemat *rate limit*.
+Jika **Sangia Scieco** sudah memiliki data di database, kirimkan dalam request body. Engine akan menggunakan data tersebut **tanpa melakukan HTTP request ke API eksternal**, sehingga lebih cepat dan hemat *rate limit*.
 
 ```json
 {

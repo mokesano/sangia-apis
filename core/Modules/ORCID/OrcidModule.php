@@ -9,9 +9,9 @@ use Sangia\Core\Shared\ApiClients\CrossrefClient;
 /**
  * ORCID Module — fetches researcher profile and works.
  *
- * No result caching here. Sangia Sikola owns all persistence:
+ * No result caching here. Sangia Scieco owns all persistence:
  *   - pass $suppliedWorks to skip the ORCID cURL call entirely
- *   - response always includes 'raw_data' so Sangia Sikola can save it to DB
+ *   - response always includes 'raw_data' so Sangia Scieco can save it to DB
  */
 class OrcidModule
 {
@@ -26,10 +26,10 @@ class OrcidModule
 
     /**
      * @param string     $orcid          ORCID iD
-     * @param bool       $refresh        Force re-fetch even if Sangia Sikola supplied data
+     * @param bool       $refresh        Force re-fetch even if Sangia Scieco supplied data
      * @param int        $limit          Max works to fetch from ORCID API
-     * @param array|null $suppliedWorks  Works already stored in Sangia Sikola DB — skips cURL
-     * @param array|null $suppliedPerson Person summary already stored in Sangia Sikola DB
+     * @param array|null $suppliedWorks  Works already stored in Sangia Scieco DB — skips cURL
+     * @param array|null $suppliedPerson Person summary already stored in Sangia Scieco DB
      */
     public function getProfile(
         string  $orcid,
@@ -43,7 +43,7 @@ class OrcidModule
             return $this->error(400, "Invalid ORCID format: $orcid");
         }
 
-        // Use supplied data from Sangia Sikola DB (no external call needed)
+        // Use supplied data from Sangia Scieco DB (no external call needed)
         if (!$refresh && $suppliedWorks !== null) {
             return [
                 'status'         => 'success',
@@ -52,7 +52,7 @@ class OrcidModule
                 'works'          => $suppliedWorks,
                 'works_count'    => count($suppliedWorks),
                 'api_version'    => 'v2.2-modular',
-                'data_source'    => 'sangia_sikola_db',
+                'data_source'    => 'sangia_scieco_db',
                 'cache_info'     => ['from_cache' => true],
             ];
         }
@@ -77,7 +77,7 @@ class OrcidModule
             'api_version'    => 'v2.2-modular',
             'data_source'    => 'orcid_api',
             'cache_info'     => ['from_cache' => false],
-            // Sangia Sikola should save these fields to its DB
+            // Sangia Scieco should save these fields to its DB
             'raw_data'       => [
                 'person'     => $person,
                 'works'      => $works,

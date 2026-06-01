@@ -1,10 +1,10 @@
 # Sangia API Engine — Dokumentasi API
 
-**Base URL:** `https://api.sangia.org`  
-**Versi API:** v1  
+**Base URL:** `https://api.sangia.org`
+**Versi API:** v1
 **Autentikasi:** `X-API-Key: sg_{user_id}_{timestamp}_{hmac16}`
 
-> API key dihasilkan oleh **Sangia Sikola** dan divalidasi secara stateless menggunakan HMAC-SHA256.  
+> API key dihasilkan oleh **Sangia Scieco** dan divalidasi secara stateless menggunakan HMAC-SHA256.
 > Semua endpoint wajib menyertakan API key kecuali yang ditandai _(publik)_.
 
 ---
@@ -35,7 +35,7 @@ Setiap endpoint memiliki dokumentasi terpisah di [`docs/endpoints/`](endpoints/)
 - Response schema dengan contoh JSON
 - Daftar error codes
 - Panduan penggunaan umum
-- Panduan integrasi di Sangia Sikola (kode PHP + SQL)
+- Panduan integrasi di Sangia Scieco (kode PHP + SQL)
 
 ---
 
@@ -48,7 +48,7 @@ Authorization: Bearer sg_42_1719000000_a3f8e2c1d5b7
 ```
 
 **Format key:** `sg_{user_id}_{unix_timestamp}_{hmac16}`
-- `hmac16` = 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, SANGIA_SHARED_SECRET)`  
+- `hmac16` = 16 karakter pertama dari `HMAC-SHA256(user_id:timestamp, SANGIA_SHARED_SECRET)`
 - TTL: 1 tahun sejak `timestamp`
 - Query string `?api_key=...` dinonaktifkan secara default untuk mengurangi risiko kebocoran key di log URL; aktifkan hanya jika benar-benar perlu melalui `SANGIA_ALLOW_QUERY_API_KEY=true`.
 
@@ -57,19 +57,19 @@ Authorization: Bearer sg_42_1719000000_a3f8e2c1d5b7
 { "status": "error", "code": 401, "message": "Invalid or expired API key." }
 ```
 
-**Rate Limit:** 60 request/60 detik per API key (default). Dapat dikonfigurasi via env.  
+**Rate Limit:** 60 request/60 detik per API key (default). Dapat dikonfigurasi via env.
 Header response: `X-RateLimit-Limit`, `X-RateLimit-Remaining`
 
 ---
 
 ## Arsitektur Data
 
-sangia-apis adalah **pure analysis engine** — tidak menyimpan hasil apapun secara permanen.  
-Semua persistensi data adalah tanggung jawab **Sangia Sikola**.
+sangia-apis adalah **pure analysis engine** — tidak menyimpan hasil apapun secara permanen.
+Semua persistensi data adalah tanggung jawab **Sangia Scieco**.
 
-### Pola `supplied_data` — Kirim data dari DB Sangia Sikola
+### Pola `supplied_data` — Kirim data dari DB Sangia Scieco
 
-Jika Sangia Sikola sudah memiliki data di DB, kirimkan dalam request body.  
+Jika Sangia Scieco sudah memiliki data di DB, kirimkan dalam request body.
 sangia-apis akan menggunakan data tersebut **tanpa melakukan cURL ke API eksternal**.
 
 ```json
@@ -97,12 +97,12 @@ sangia-apis akan menggunakan data tersebut **tanpa melakukan cURL ke API ekstern
 }
 ```
 
-Response saat data disupply: `"data_source": "sangia_sikola_db"`
+Response saat data disupply: `"data_source": "sangia_scieco_db"`
 
-### Pola `raw_data` — Simpan hasil ke DB Sangia Sikola
+### Pola `raw_data` — Simpan hasil ke DB Sangia Scieco
 
-Ketika sangia-apis mengambil data dari API eksternal (ORCID/Scopus/dll), response menyertakan field `raw_data` berisi data mentah beserta `fetched_at`.  
-Sangia Sikola harus menyimpan ini ke tabelnya (citations_cache, author_profiles_cache, dll).
+Ketika sangia-apis mengambil data dari API eksternal (ORCID/Scopus/dll), response menyertakan field `raw_data` berisi data mentah beserta `fetched_at`.
+Sangia Scieco harus menyimpan ini ke tabelnya (citations_cache, author_profiles_cache, dll).
 
 ```json
 {
@@ -122,8 +122,8 @@ Response saat data diambil dari API eksternal: `"data_source": "orcid_api"` / `"
 
 ## Override Bobot Analisis
 
-Semua endpoint SDG classify dan impact calculate menerima objek `weights` dalam request body.  
-Bobot dari Sangia Sikola admin panel **selalu prioritas**; nilai default dalam kode hanya fallback.
+Semua endpoint SDG classify dan impact calculate menerima objek `weights` dalam request body.
+Bobot dari Sangia Scieco admin panel **selalu prioritas**; nilai default dalam kode hanya fallback.
 
 ### SDG Classify — override bobot + threshold:
 ```json
@@ -161,14 +161,14 @@ Bobot dari Sangia Sikola admin panel **selalu prioritas**; nilai default dalam k
 
 ## Pola Batch Anti-Timeout
 
-Endpoint yang memproses profil ORCID (banyak karya) menggunakan pola batch untuk menghindari PHP timeout.  
+Endpoint yang memproses profil ORCID (banyak karya) menggunakan pola batch untuk menghindari PHP timeout.
 Client memanggil endpoint berulang kali dengan `next_offset` sampai mendapat `status: "success"`.
 
 **Parameter:**
 - `offset` (int, default `0`) — posisi mulai batch
 - `batch_size` (int, default `20`, max `50`) — jumlah karya per request
 
-**Contoh alur (JavaScript/Sangia Sikola):**
+**Contoh alur (JavaScript/Sangia Scieco):**
 ```javascript
 async function classifyWithBatch(orcid, endpoint) {
   let offset = 0;
@@ -234,7 +234,7 @@ Daftar versi SDG analyzer + bobot dan threshold default.
 ---
 
 ### POST `/api/v1/sdg/{version}/classify`
-Klasifikasi SDG dari teks, DOI, atau ORCID.  
+Klasifikasi SDG dari teks, DOI, atau ORCID.
 `{version}` = `v0` | `v1` | `v2` | `v3` | `v4` | `v5` | `v5e`
 
 **Request body:**
@@ -251,8 +251,8 @@ Klasifikasi SDG dari teks, DOI, atau ORCID.
   "supplied_works": []
 }
 ```
-Gunakan **salah satu**: `title+abstract`, `doi`, atau `orcid`. Jika `orcid`, gunakan pola batch.  
-`supplied_works` — opsional, kirim data karya dari DB Sangia Sikola untuk skip fetch ORCID.
+Gunakan **salah satu**: `title+abstract`, `doi`, atau `orcid`. Jika `orcid`, gunakan pola batch.
+`supplied_works` — opsional, kirim data karya dari DB Sangia Scieco untuk skip fetch ORCID.
 
 **Response (title+abstract):**
 ```json
@@ -539,7 +539,7 @@ Analisis tren berdasarkan data karya peneliti.
     "peak_year": 2023,
     "total_works_analyzed": 75
   },
-  "data_source": "sangia_sikola_db",
+  "data_source": "sangia_scieco_db",
   "api_version": "v1.0-trend"
 }
 ```
@@ -643,7 +643,7 @@ Rekomendasi kebijakan berbasis data riset.
 ---
 
 ### POST `/api/v1/admin/keys/revoke`
-Cabut API key (hanya untuk panggilan dari backend Sangia Sikola).
+Cabut API key (hanya untuk panggilan dari backend Sangia Scieco).
 
 **Request body:**
 ```json

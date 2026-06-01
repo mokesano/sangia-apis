@@ -16,9 +16,9 @@ use Sangia\Core\Shared\Services\CacheService;
  *
  * Formula: Composite = Academic×0.40 + Social×0.25 + Economic×0.20 + SDG×0.15
  *
- * No result caching here. Sangia Sikola owns all persistence:
+ * No result caching here. Sangia Scieco owns all persistence:
  *   - pass $suppliedWorks / $suppliedScopus to skip external API calls
- *   - response includes 'raw_data' so Sangia Sikola can save fresh fetches to DB
+ *   - response includes 'raw_data' so Sangia Scieco can save fresh fetches to DB
  *
  * CacheService is only used for short-lived batch session state (partial accumulator).
  *
@@ -64,10 +64,10 @@ class SangiaScoreEngine
      * @param bool        $refresh         Force re-fetch even if supplied data present
      * @param int         $batchSize       Works processed per HTTP request
      * @param int         $offset          Batch starting index (0 = first call)
-     * @param array       $weightOverride  Sangia Sikola admin composite weights
-     * @param array       $suppliedWorks   Works from Sangia Sikola DB — skips ORCID cURL
-     * @param array|null  $suppliedPerson  Person summary from Sangia Sikola DB
-     * @param array|null  $suppliedScopus  Scopus author data from Sangia Sikola DB
+     * @param array       $weightOverride  Sangia Scieco admin composite weights
+     * @param array       $suppliedWorks   Works from Sangia Scieco DB — skips ORCID cURL
+     * @param array|null  $suppliedPerson  Person summary from Sangia Scieco DB
+     * @param array|null  $suppliedScopus  Scopus author data from Sangia Scieco DB
      */
     public function calculate(
         string  $orcid,
@@ -91,7 +91,7 @@ class SangiaScoreEngine
         if (!$refresh && !empty($suppliedWorks)) {
             $works         = array_slice($suppliedWorks, 0, self::MAX_WORKS);
             $personSummary = $suppliedPerson ?? [];
-            $orcidSource   = 'sangia_sikola_db';
+            $orcidSource   = 'sangia_scieco_db';
             $rawOrcidData  = null;
         } else {
             $orcidData = $this->orcid->getProfile($orcid, $refresh && $offset === 0);
@@ -170,7 +170,7 @@ class SangiaScoreEngine
         if ($scopusId) {
             if (!$refresh && $suppliedScopus !== null) {
                 $scopusData   = $suppliedScopus;
-                $scopusSource = 'sangia_sikola_db';
+                $scopusSource = 'sangia_scieco_db';
             } else {
                 $scopusFull    = $this->scopus->getAuthor($scopusId, 25, false);
                 $scopusData    = $scopusFull;
@@ -228,7 +228,7 @@ class SangiaScoreEngine
             'cache_info'       => ['from_cache' => false],
         ];
 
-        // Include raw fetched data for Sangia Sikola to persist
+        // Include raw fetched data for Sangia Scieco to persist
         $rawData = [];
         if ($rawOrcidData !== null) {
             $rawData['orcid'] = $rawOrcidData;
