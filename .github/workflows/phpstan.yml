@@ -7,9 +7,9 @@ name: PHPStan
 
 on:
   push:
-    branches: [ "master, develop, production" ]
+    branches: [ "master" ]
   pull_request:
-    branches: [ "master, develop, production" ]
+    branches: [ "master" ]
 
 env:
   # Menghilangkan peringatan depresiasi Node.js 20
