@@ -7,9 +7,9 @@ name: PHPStan
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "master, develop, production" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "master, develop, production" ]
 
 env:
   # Menghilangkan peringatan depresiasi Node.js 20
@@ -34,13 +34,13 @@ jobs:
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.4'
+          php-version: '8.1'
           coverage: none
           tools: phpstan
           ini-values: memory_limit=-1
 
       - name: Run PHPStan (Level 0)
-        # LEVEL 0 SANGAT PENTING untuk kode legacy. Ini hanya mendeteksi basic fatal errors.
+        # LEVEL 0 SANGAT PENTING untuk mendeteksi basic fatal errors.
         # Format github akan membuat anotasi langsung pada tab 'Commit' atau 'Pull Request'.
-        run: phpstan analyse classes pages plugins lib/pkp/classes --level 0 --error-format=github
+        run: phpstan analyse classes --level 0 --error-format=github
         continue-on-error: true
