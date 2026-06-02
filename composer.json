@@ -1,5 +1,5 @@
 {
-    "name": "sangia/api-engine",
+    "name": "sangia/apis-engine",
     "description": "Sangia API Core Processing Engine",
     "config": {
         "vendor-dir": "library"

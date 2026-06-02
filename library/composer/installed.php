@@ -1,19 +1,19 @@
 <?php return array(
     'root' => array(
-        'name' => 'sangia/api-engine',
+        'name' => 'sangia/apis-engine',
         'pretty_version' => 'dev-master',
         'version' => 'dev-master',
-        'reference' => '12a55d3ed0d02c98784be298c50b84a916b98f70',
+        'reference' => 'b920f94d71da55707a4430d73c23c38d8b6c45e7',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
         'dev' => true,
     ),
     'versions' => array(
-        'sangia/api-engine' => array(
+        'sangia/apis-engine' => array(
             'pretty_version' => 'dev-master',
             'version' => 'dev-master',
-            'reference' => '12a55d3ed0d02c98784be298c50b84a916b98f70',
+            'reference' => 'b920f94d71da55707a4430d73c23c38d8b6c45e7',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
