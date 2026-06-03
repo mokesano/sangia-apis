@@ -21,10 +21,7 @@ name: Release Otomatis (Semantic Release)
 # Jalankan workflow ketika ada push ke branch utama (rilis) dan develop (hanya untuk memicu CI tanpa rilis)
 on:
   push:
-    branches:
-      - master
-      - develop
-      - production
+    branches: [ "master, develop, production" ]
 
 # Izin yang diperlukan untuk membuat release dan tag
 permissions:
