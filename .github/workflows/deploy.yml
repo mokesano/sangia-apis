@@ -1,45 +1,32 @@
-name: Build & Deploy Sangia-APIs
+name: Build Production Branch
 
 on:
   push:
     branches: [master]
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     
-    env:
-      SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      SERVER: ${{ secrets.SERVER_HOST }}
-      USER: ${{ secrets.SERVER_USERNAME }}
-      TARGET: ${{ secrets.DEPLOY_PATH }}
-
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup PHP & Composer
+      - name: Setup PHP & Build
         uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.2'
-          tools: composer:v2
-          coverage: none
-      
-      - name: Build Production Dependencies
-        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
-      
+        with: { php-version: '8.2', tools: composer:v2 }
+      - run: composer install --no-dev --optimize-autoloader
+
       - name: Purge Dev Files
         run: |
           rm -rf .github/ tests/
-          rm -f .gitattributes .gitignore .gitkeep
-          rm -f phpunit.xml phpunit.xml.dist
-      
-      - name: Deploy to cPanel via SSH
-        uses: easingthemes/ssh-deploy@main
-        with:
-          SSH_PRIVATE_KEY: ${{ env.SSH_KEY }}
-          # PERBAIKAN: Hapus -o StrictHostKeyChecking=no karena sudah otomatis ditambahkan oleh action
-          ARGS: "-rlgoDzvc --delete --exclude='.env' --exclude='writable/logs/' --exclude='writable/cache/'"
-          SOURCE: "./"
-          REMOTE_HOST: ${{ env.SERVER }}
-          REMOTE_USER: ${{ env.USER }}
-          TARGET: ${{ env.TARGET }}
+          rm -f .gitattributes .gitignore .gitkeep phpunit.xml phpunit.xml.dist
+
+      - name: Push to Production Branch
+        run: |
+          git config user.name "GitHub Action"
+          git config user.email "action@github.com"
+          git add .
+          git commit -m "Production build" || echo "No changes"
+          git push origin HEAD:production
