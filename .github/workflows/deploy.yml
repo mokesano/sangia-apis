@@ -2,7 +2,7 @@ name: Build & Deploy Sangia-APIs
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 jobs:
   deploy:
