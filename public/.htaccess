@@ -8,7 +8,11 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^ index.php [QSA,L]
 
-# Blokir akses ke semua file berawalan titik (seperti .git, .env, .htaccess)
+# BLOKIR AKSES KE SEMUA FILE/FOLDER TERSEMBUNYI (.git, .env, .github, dll)
 <FilesMatch "^\.">
-    Require all denied
+    Order allow,deny
+    Deny from all
 </FilesMatch>
+
+# BLOKIR AKSES KE FOLDER .git SECARA SPESIFIK (Lapisan keamanan ganda)
+RedirectMatch 403 /\.git
