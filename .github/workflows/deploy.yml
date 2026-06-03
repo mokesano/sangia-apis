@@ -1,0 +1,62 @@
+name: Prepare Clean Production Branch for cPanel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-prepare:
+    name: Build Dependencies & Push Clean Branch
+    runs-on: ubuntu-latest
+    
+    # Izin GitHub Actions untuk melakukan commit dan push ke repository
+    permissions:
+      contents: write
+
+    steps:
+      # 1. Checkout kode sumber dari branch main
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Setup Environment untuk membangun library
+      - name: Setup PHP & Composer
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      # 3. Membangun library (Dependencies) khusus produksi
+      - name: Build Production Dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      # 4. Purge File (STRICTLY SCOPED - Hanya sesuai instruksi eksplisit Anda)
+      - name: Purge Explicitly Requested Files
+        run: |
+          # Hapus folder GitHub Actions lokal & folder unit test
+          rm -rf .github/ tests/
+          
+          # Hapus file konfigurasi/atribut Git dan dummy file
+          rm -f .gitattributes .gitignore .gitkeep
+          
+          # Hapus file konfigurasi unit test
+          rm -f phpunit.xml phpunit.xml.dist
+          
+          # =====================================================================
+          # PROTEKSI EKSPLISIT (DILARANG DIHAPUS)
+          # =====================================================================
+          # File-file di bawah ini SENGAAJA TIDAK DISENTUH karena vital untuk produksi:
+          # - .htaccess (Konfigurasi Web Server)
+          # - .env.example (Contoh konfigurasi environment)
+          # - composer.json & composer.lock (Autoloading & Dependency locking)
+          # - docs/, tools/, README.md, LICENSE (Dokumentasi & Legal)
+          # =====================================================================
+
+      # 5. Commit dan Push ke branch khusus untuk cPanel
+      - name: Commit and Push Clean Code
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Automated Production Build: Clean dependencies & purged dev files"
+          branch: production-build
+          file_pattern: '.'
