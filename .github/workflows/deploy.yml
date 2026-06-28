@@ -4,6 +4,10 @@ on:
   push:
     branches: [master]
 
+concurrency:
+  group: production-build
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,4 +33,5 @@ jobs:
           git config user.email "action@github.com"
           git add .
           git commit -m "Production build" || echo "No changes"
-          git push origin HEAD:production
+          git fetch origin production:refs/remotes/origin/production || true
+          git push --force-with-lease origin HEAD:production
