@@ -3,7 +3,7 @@
         'name' => 'sangia/apis-engine',
         'pretty_version' => 'dev-master',
         'version' => 'dev-master',
-        'reference' => 'e1576287806d6ecfd6ae2c3209329a971af7a96d',
+        'reference' => '02d0f039591e564902976939314e28a4796c653b',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -13,7 +13,7 @@
         'sangia/apis-engine' => array(
             'pretty_version' => 'dev-master',
             'version' => 'dev-master',
-            'reference' => 'e1576287806d6ecfd6ae2c3209329a971af7a96d',
+            'reference' => '02d0f039591e564902976939314e28a4796c653b',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
